@@ -422,7 +422,7 @@ const SETTINGS_KEY = 'tacsong_settings_v1';
 // these settings (bizNumber / defaultArrival / useMapInstead / mapNote)
 const KNOWN_DEFAULTS = {
   '제이에스무역': { bizNumber: '321-44-01287' }, // 도착지는 매번 달라짐 → 고정값 없음
-  '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하2층' },
+  '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', bizNumber: '6118603456' },
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
 };
@@ -929,6 +929,26 @@ function fmtMoney(v){
   return n.toLocaleString('ko-KR');
 }
 
+// 서울 → 구 단위, 경기도 → 도시명, 그 외 광역시/도 → 도시명만
+// (예: "경기도 부천시 450-1 현대아파트..." → "부천", "서울 강남구 테헤란로..." → "강남구")
+const METRO_CITIES = ['부산','대구','인천','광주','대전','울산','세종'];
+function regionOf(address){
+  if(!address) return '';
+  let a = address.trim().replace(/^서울특별시\s*/,'서울 ').replace(/^서울시\s*/,'서울 ');
+  if(/^서울/.test(a)){
+    const m = a.match(/서울\S*?\s*([가-힣]+구)/);
+    return m ? m[1] : '서울';
+  }
+  if(/^경기/.test(a)){
+    const m = a.match(/경기\S*?\s*([가-힣]+?)(시|군)/);
+    return m ? m[1] : '경기';
+  }
+  const metro = METRO_CITIES.find(city=>a.startsWith(city));
+  if(metro) return metro;
+  // fallback: first token, with the usual province/city suffixes stripped
+  return (a.split(/\s+/)[0] || a).replace(/(광역시|특별자치시|특별자치도|특별시)$/,'').replace(/도$/,'');
+}
+
 function generateAll(){
   const from = val('fromAddr'), fromPh = val('fromPhone');
   const to = val('toAddr'), toPh = val('toPhone');
@@ -942,12 +962,11 @@ function generateAll(){
 
   const dateStr = date ? formatDateKo(date) : '';
 
-  // 1) message to client (의뢰인 확인 문자) — short confirmation style
-  const routeStr = [from, to].filter(Boolean).join('-');
+  // 1) message to client (의뢰인 확인 문자) — region(출발지 기준) + 차량 + 기사연락처 + 금액만
+  const region = regionOf(from);
   const clientLines = [
-    '네 확인이요',
-    [routeStr, car].filter(Boolean).join(' '),
-    toPh,
+    [region, carNum ? `${car}/(${carNum})` : car].filter(Boolean).join(' '),
+    driverPh,
     fee ? fmtMoney(fee)+'원' : ''
   ].filter(Boolean);
   document.getElementById('clientMsg').value = clientLines.join('\n');
