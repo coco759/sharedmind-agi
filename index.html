@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>탁송 오더 매니저</title>
+<style>
+  :root{
+    --bg:#0b0b0d;
+    --card:#18181b;
+    --input:#232327;
+    --border:#2c2c31;
+    --text:#f2f2f3;
+    --sub:#9a9aa2;
+    --accent1:#ff8a3d;
+    --accent2:#ff5722;
+    --danger:#ff5c5c;
+    --ok:#3ddc84;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    padding-bottom:80px;
+  }
+  header{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:20px 16px 16px;
+    border-bottom:1px solid var(--border);
+  }
+  .logo{
+    width:48px;height:48px;border-radius:12px;
+    background:linear-gradient(135deg,var(--accent1),var(--accent2));
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:18px;color:#111;
+    flex-shrink:0;
+  }
+  header h1{font-size:18px;margin:0;}
+  header p{margin:2px 0 0;font-size:12.5px;color:var(--sub);}
+
+  .container{padding:16px;max-width:720px;margin:0 auto;}
+  .notice{
+    background:#2a2408;
+    border:1px solid #4a3f10;
+    color:#e8cf6a;
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:13px;
+    margin-bottom:20px;
+    line-height:1.5;
+  }
+  .section-title{
+    color:var(--accent1);
+    font-weight:700;
+    font-size:15px;
+    margin:28px 0 12px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .section-title .num{
+    background:linear-gradient(135deg,var(--accent1),var(--accent2));
+    color:#111;
+    width:20px;height:20px;border-radius:6px;
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:800;
+  }
+  textarea, input, select{
+    width:100%;
+    background:var(--input);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:14px;
+    font-family:inherit;
+  }
+  textarea::placeholder, input::placeholder{color:#6d6d75;}
+  textarea{resize:vertical;min-height:120px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12.5px;color:var(--sub);margin-bottom:6px;}
+  .row-buttons{display:flex;gap:10px;margin-top:10px;}
+  button{
+    font-family:inherit;
+    cursor:pointer;
+    border:none;
+  }
+  .btn{
+    flex:1;
+    background:var(--input);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:13px;
+    border-radius:10px;
+    font-size:14px;
+    font-weight:600;
+  }
+  .btn:active{opacity:0.7;}
+  .btn-primary{
+    width:100%;
+    background:linear-gradient(135deg,var(--accent1),var(--accent2));
+    color:#181205;
+    padding:16px;
+    border-radius:12px;
+    font-size:15.5px;
+    font-weight:800;
+    margin-top:6px;
+  }
+  .btn-ghost{
+    width:100%;
+    background:var(--card);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:14px;
+    border-radius:10px;
+    font-weight:600;
+    margin-top:10px;
+  }
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .chip{
+    background:var(--card);
+    border:1px solid var(--border);
+    color:var(--sub);
+    padding:7px 12px;
+    border-radius:999px;
+    font-size:12.5px;
+  }
+  .chip.active{
+    border-color:var(--accent1);
+    color:var(--accent1);
+    background:#2a1c10;
+  }
+  .chip .x{margin-left:6px;color:var(--danger);}
+  .client-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:12px;
+  }
+  .client-card .head{
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+  }
+  .client-card .head strong{font-size:14.5px;}
+  .small-btn{
+    background:var(--input);
+    border:1px solid var(--border);
+    color:var(--sub);
+    padding:6px 10px;
+    border-radius:8px;
+    font-size:12px;
+  }
+  .small-btn.danger{color:var(--danger);}
+  .preset-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:8px 0;border-top:1px solid var(--border);
+    font-size:13px;
+  }
+  .preset-row:first-of-type{border-top:none;}
+  .preset-row .meta{color:var(--sub);font-size:11.5px;}
+  .add-preset-form{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;
+  }
+  .add-preset-form input{padding:9px 10px;font-size:13px;}
+  .add-preset-form button{grid-column:span 2;}
+  .output-box{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-top:14px;
+  }
+  .output-box .label-row{
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+  }
+  .output-box .label-row span{font-size:13px;font-weight:700;color:var(--accent1);}
+  .output-box textarea{min-height:110px;background:#101012;font-size:13.5px;line-height:1.55;}
+  .copy-btn{
+    background:var(--input);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:6px 12px;
+    border-radius:8px;
+    font-size:12px;
+    font-weight:600;
+  }
+  .copy-btn.copied{border-color:var(--ok);color:var(--ok);}
+  .hint{font-size:11.5px;color:var(--sub);margin-top:8px;line-height:1.5;}
+  .toast{
+    position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+    background:#1f1f22;border:1px solid var(--border);
+    color:var(--text);padding:10px 18px;border-radius:999px;
+    font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+    z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+  details{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:20px;}
+  details summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--text);}
+  footer{
+    position:fixed;bottom:0;left:0;right:0;
+    background:#0b0b0dee;
+    border-top:1px solid var(--border);
+    text-align:center;
+    padding:8px;
+    font-size:11px;color:var(--sub);
+    backdrop-filter:blur(6px);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TR</div>
+  <div>
+    <h1>탁송 오더 매니저</h1>
+    <p>붙여넣기 1번 → 오더확인/거래처 확인문자/기사문자 자동 생성</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="notice">
+    로그인 없이 이 브라우저에서만 동작합니다. 거래처/도착지 프리셋은 이 브라우저에 저장되고, 오더 내용은 새로고침하면 초기화됩니다.
+  </div>
+
+  <details id="clientPanel">
+    <summary>⚙️ 거래처 &amp; 도착지 프리셋 관리</summary>
+    <div style="margin-top:14px;">
+      <div class="field">
+        <label>새 거래처 이름</label>
+        <div style="display:flex;gap:8px;">
+          <input id="newClientName" placeholder="예: 제이에스무역" />
+          <button class="btn" style="flex:0 0 80px;" onclick="addClient()">추가</button>
+        </div>
+      </div>
+      <div id="clientList"></div>
+    </div>
+  </details>
+
+  <div class="section-title"><span class="num">1</span> 오더 붙여넣기</div>
+  <textarea id="rawOrder" placeholder="카카오톡 오더 내용을 그대로 붙여넣으세요"></textarea>
+  <div class="row-buttons">
+    <button class="btn" onclick="autoExtract()">자동 추출</button>
+    <button class="btn" onclick="resetAll()">초기화</button>
+  </div>
+
+  <div class="section-title"><span class="num">2</span> 오더 확인</div>
+
+  <div class="field">
+    <label>거래처</label>
+    <select id="clientSelect" onchange="onClientChange()"></select>
+  </div>
+
+  <div class="grid2">
+    <div class="field">
+      <label>출발지</label>
+      <input id="fromAddr" placeholder="출발 주소" />
+    </div>
+    <div class="field">
+      <label>출발 연락처</label>
+      <input id="fromPhone" placeholder="010-0000-0000" />
+    </div>
+    <div class="field">
+      <label>도착지</label>
+      <input id="toAddr" placeholder="도착 주소" />
+    </div>
+    <div class="field">
+      <label>도착 연락처</label>
+      <input id="toPhone" placeholder="010-0000-0000" />
+    </div>
+  </div>
+
+  <div id="presetChips" class="chips" style="margin-bottom:14px;"></div>
+
+  <div class="grid2">
+    <div class="field">
+      <label>차량명</label>
+      <input id="carName" placeholder="예: 스포티지" />
+    </div>
+    <div class="field">
+      <label>차량번호</label>
+      <input id="carNum" placeholder="예: 23누0164" />
+    </div>
+    <div class="field">
+      <label>탁송료 (원)</label>
+      <input id="feeMain" placeholder="50000" inputmode="numeric" />
+    </div>
+    <div class="field">
+      <label>주유비 (원)</label>
+      <input id="feeFuel" placeholder="" inputmode="numeric" />
+    </div>
+    <div class="field">
+      <label>날짜</label>
+      <input id="orderDate" type="date" />
+    </div>
+    <div class="field">
+      <label>기사 전화번호</label>
+      <input id="driverPhone" placeholder="010-0000-0000" />
+    </div>
+  </div>
+
+  <div class="field">
+    <label>요청사항 (예약시간, 차키위치 등)</label>
+    <textarea id="requestNote" style="min-height:70px;" placeholder="예: 7월11일 오전11시 도착 예약배차"></textarea>
+  </div>
+
+  <div class="section-title"><span class="num">3</span> 한 번에 생성</div>
+  <button class="btn-primary" onclick="generateAll()">거래처 확인문자 + 기사문자 생성</button>
+
+  <div class="output-box">
+    <div class="label-row">
+      <span>📩 거래처(의뢰인)에게 보낼 확인 문자</span>
+      <button class="copy-btn" onclick="copyBox('clientMsg', this)">복사</button>
+    </div>
+    <textarea id="clientMsg" readonly></textarea>
+  </div>
+
+  <div class="output-box">
+    <div class="label-row">
+      <span>🚗 기사에게 보낼 안내 문자</span>
+      <button class="copy-btn" onclick="copyBox('driverMsg', this)">복사</button>
+    </div>
+    <textarea id="driverMsg" readonly></textarea>
+  </div>
+
+  <button class="btn-ghost" onclick="copyNotionRow()">노션 붙여넣기용 복사</button>
+  <div class="hint">
+    "탁송 오더 관리" 표를 열고 빈 행에 붙여넣기 하면 오더/출발지/도착지/금액/주유비/날짜/차량/거래처 순서로 채워집니다.
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+<footer>탁송 오더 매니저 · 이 브라우저에만 저장됩니다</footer>
+
+<script>
+/* ---------------- storage ---------------- */
+const STORAGE_KEY = 'tacsong_clients_v1';
+
+function loadClients(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  // seed with example from screenshots
+  return [
+    {id:cid(), name:'제이에스무역', presets:[]},
+    {id:cid(), name:'달렉스무역', presets:[]},
+    {id:cid(), name:'두리무역', presets:[]},
+  ];
+}
+function saveClients(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
+}
+function cid(){ return 'c'+Math.random().toString(36).slice(2,9); }
+
+let clients = loadClients();
+
+/* ---------------- client panel ---------------- */
+function renderClientPanel(){
+  const list = document.getElementById('clientList');
+  list.innerHTML = '';
+  clients.forEach(c=>{
+    const card = document.createElement('div');
+    card.className = 'client-card';
+    card.innerHTML = `
+      <div class="head">
+        <strong>${esc(c.name)}</strong>
+        <div style="display:flex;gap:6px;">
+          <button class="small-btn" onclick="renameClient('${c.id}')">이름변경</button>
+          <button class="small-btn danger" onclick="deleteClient('${c.id}')">삭제</button>
+        </div>
+      </div>
+      <div class="presets-wrap">
+        ${c.presets.map(p=>`
+          <div class="preset-row">
+            <div>
+              <div>${esc(p.name)}</div>
+              <div class="meta">${esc(p.address||'')}${p.phone? ' · '+esc(p.phone):''}</div>
+            </div>
+            <button class="small-btn danger" onclick="deletePreset('${c.id}','${p.id}')">삭제</button>
+          </div>
+        `).join('') || '<div class="meta" style="padding:6px 0;">등록된 도착지 프리셋 없음</div>'}
+      </div>
+      <div class="add-preset-form">
+        <input placeholder="별칭 (예: 유원지이글)" id="pname_${c.id}" />
+        <input placeholder="연락처 (선택)" id="pphone_${c.id}" />
+        <input placeholder="전체 주소" id="paddr_${c.id}" style="grid-column:span 2;" />
+        <button class="btn" onclick="addPreset('${c.id}')">이 거래처에 도착지 프리셋 추가</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function addClient(){
+  const input = document.getElementById('newClientName');
+  const name = input.value.trim();
+  if(!name) return;
+  if(clients.some(c=>c.name===name)){ toast('이미 있는 거래처 이름입니다'); return; }
+  clients.push({id:cid(), name, presets:[]});
+  input.value='';
+  saveClients();
+  renderClientPanel();
+  renderClientSelect();
+}
+function renameClient(id){
+  const c = clients.find(x=>x.id===id);
+  const name = prompt('새 거래처 이름', c.name);
+  if(name && name.trim()){
+    c.name = name.trim();
+    saveClients(); renderClientPanel(); renderClientSelect();
+  }
+}
+function deleteClient(id){
+  if(!confirm('이 거래처를 삭제할까요? 저장된 도착지 프리셋도 함께 삭제됩니다.')) return;
+  clients = clients.filter(x=>x.id!==id);
+  saveClients(); renderClientPanel(); renderClientSelect();
+}
+function addPreset(clientId){
+  const c = clients.find(x=>x.id===clientId);
+  const name = document.getElementById('pname_'+clientId).value.trim();
+  const phone = document.getElementById('pphone_'+clientId).value.trim();
+  const addr = document.getElementById('paddr_'+clientId).value.trim();
+  if(!name && !addr) return;
+  c.presets.push({id:cid(), name: name||addr, address: addr, phone});
+  saveClients(); renderClientPanel(); renderPresetChips();
+}
+function deletePreset(clientId, presetId){
+  const c = clients.find(x=>x.id===clientId);
+  c.presets = c.presets.filter(p=>p.id!==presetId);
+  saveClients(); renderClientPanel(); renderPresetChips();
+}
+
+/* ---------------- client select + preset chips ---------------- */
+function renderClientSelect(){
+  const sel = document.getElementById('clientSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- 거래처 선택 --</option>' +
+    clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if(clients.some(c=>c.id===cur)) sel.value = cur;
+}
+function onClientChange(){
+  renderPresetChips();
+}
+function renderPresetChips(){
+  const sel = document.getElementById('clientSelect');
+  const wrap = document.getElementById('presetChips');
+  wrap.innerHTML = '';
+  const c = clients.find(x=>x.id===sel.value);
+  if(!c || !c.presets.length) return;
+  c.presets.forEach(p=>{
+    const chip = document.createElement('button');
+    chip.type='button';
+    chip.className = 'chip';
+    chip.textContent = '📍 '+p.name;
+    chip.onclick = ()=>{
+      document.getElementById('toAddr').value = p.address || p.name;
+      if(p.phone) document.getElementById('toPhone').value = p.phone;
+      [...wrap.children].forEach(ch=>ch.classList.remove('active'));
+      chip.classList.add('active');
+    };
+    wrap.appendChild(chip);
+  });
+}
+
+/* ---------------- auto extract ---------------- */
+const VEHICLE_KEYWORDS = ['소나타','아반떼','그랜저','싼타페','투싼','코나','팰리세이드','베뉴',
+  'K3','K5','K7','K8','K9','스포티지','쏘렌토','셀토스','카니발','모하비','스타렉스','포터','봉고',
+  '레이','모닝','캐스퍼','티볼리','코란도','렉스턴','QM6','QM3','SM6','SM5','말리부','트랙스',
+  '트레일블레이저','이쿼녹스','로체','제네시스','G70','G80','G90','GV70','GV80','아이오닉','EV6',
+  '니로','벤츠','BMW','아우디','폭스바겐','볼보','렉서스','도요타','캠리','혼다','닛산','아반떼hd',
+  '아반떼HD','스타리아','올란도','다마스','라보'];
+
+const ADDR_KEYWORDS = ['시','도','구','군','읍','면','동','로','길','번지','아파트','빌라','오피스텔',
+  '상가','공단','타워','캐슬','빌딩','주차장','센터','호점','번길','단지'];
+
+const GREETING_STOP = ['안녕하세요','감사합니다','네','넵','알겠습니다','좋은 하루요',
+  '좋은 하루 보내세요','네 확인이요','확인이요','수고하세요','넵감사합니다'];
+
+const NOISE_WORDS = ['월요일','화요일','수요일','목요일','금요일','토요일','일요일',
+  '오전','오후','배차','부탁드립니다','부탁드려요','부탁합니다','주유비','주유'];
+
+function autoExtract(){
+  const raw = document.getElementById('rawOrder').value;
+  if(!raw.trim()){ toast('붙여넣을 오더 내용이 없습니다'); return; }
+
+  let text = raw;
+  const phones = [...text.matchAll(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/g)].map(m=>normalizePhone(m[0]));
+  const plates = [...text.matchAll(/\d{2,3}\s?[가-힣]\s?\d{4}/g)].map(m=>m[0].replace(/\s/g,''));
+  const vins = [...text.matchAll(/\b[A-Z0-9]{17}\b/g)].map(m=>m[0]);
+  const dates = [...text.matchAll(/\d{4}\s?년\s?\d{1,2}\s?월\s?\d{1,2}\s?일/g)].map(m=>m[0]);
+
+  // explicit labels take priority
+  const explicitFrom = firstMatch(text, /출발지\s*[:\-]?\s*([^\n]+)/);
+  const explicitTo = firstMatch(text, /도착지\s*[:\-]?\s*([^\n]+)/);
+
+  // prices: tag ones near "주유" as fuel, others as main fee
+  const fuelFee = firstMatch(text, /주유\D{0,6}?(\d[\d,]*)\s?만?\s?원?/);
+  const priceMatches = [...text.matchAll(/(\d[\d,]{2,})\s?원|(\d+)\s?만(?!\d)/g)]
+    .map(m=> m[1] ? m[1].replace(/,/g,'') : (m[2] ? (parseInt(m[2],10)*10000).toString() : null))
+    .filter(Boolean);
+
+  let vehicleName = '';
+  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const addrLines = [];
+  const noteLines = [];
+
+  lines.forEach(line=>{
+    let working = line;
+
+    // strip known entities from the line to check what's left
+    working = working.replace(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/g,'').trim();
+    working = working.replace(/\b[A-Z0-9]{17}\b/g,'').trim();
+    working = working.replace(/\d{4}\s?년\s?\d{1,2}\s?월\s?\d{1,2}\s?일/g,'').trim();
+    working = working.replace(/\d{2,3}\s?[가-힣]\s?\d{4}/g,'').trim();
+    working = working.replace(/(\d[\d,]{2,})\s?원/g,'').trim();
+    working = working.replace(/출발지\s*[:\-]?\s*/,'').replace(/도착지\s*[:\-]?\s*/,'').trim();
+    NOISE_WORDS.forEach(w=>{ working = working.replace(new RegExp(w,'g'),'').trim(); });
+    working = working.replace(/\(\s*\)/g,'').replace(/\/\s*$/,'').replace(/\s{2,}/g,' ').trim();
+
+    const lineIsAddrLike = ADDR_KEYWORDS.some(k=>working.includes(k));
+
+    if(!vehicleName){
+      const foundKw = VEHICLE_KEYWORDS.find(k=>line.toUpperCase().includes(k.toUpperCase()));
+      if(foundKw){
+        if(lineIsAddrLike){
+          // vehicle keyword appears inside what is otherwise an address line
+          // (e.g. "부산 강서구 쏘렌토r") — keep just the keyword, let the line stay an address
+          vehicleName = foundKw;
+        } else {
+          // whole remainder of this line is the vehicle description (e.g. "KIA K5")
+          vehicleName = working || foundKw;
+        }
+      }
+    }
+
+    if(!working) return;
+    if(GREETING_STOP.includes(working)) return;
+    if(working === vehicleName && !lineIsAddrLike) return;
+
+    const looksLikeTime = /\d\s?시(\s|$)|\d\s?시\d|\d\s?분(\s|$)/.test(working);
+    const isAddrLike = !looksLikeTime && lineIsAddrLike;
+    if(isAddrLike){
+      addrLines.push(working);
+    } else if(working.length <= 12 && !/\d/.test(working)){
+      // short token with no digits at all, could be a nickname/location (e.g. "유원지이글")
+      // — if not already used as vehicle name, treat as address-ish note
+      if(working !== vehicleName) addrLines.push(working);
+    } else {
+      noteLines.push(working);
+    }
+  });
+
+  const fromAddr = explicitFrom || addrLines[0] || '';
+  const toAddr = explicitTo || addrLines[1] || '';
+
+  document.getElementById('fromAddr').value = fromAddr;
+  document.getElementById('toAddr').value = toAddr;
+  document.getElementById('fromPhone').value = phones[0] || '';
+  document.getElementById('toPhone').value = phones[1] || phones[0] || '';
+  document.getElementById('carName').value = vehicleName || '';
+  document.getElementById('carNum').value = plates[0] || '';
+
+  // fee assignment: fuelFee gets priority tag; remaining first price -> main fee
+  let mainFee = '';
+  let fuel = '';
+  if(fuelFee){
+    fuel = fuelFee.replace(/,/g,'');
+    // only fill 탁송료 if a *different* price is also present in the text
+    mainFee = priceMatches.find(p=>p!==fuel) || '';
+  } else {
+    mainFee = priceMatches[0] || '';
+  }
+  if(mainFee) document.getElementById('feeMain').value = mainFee;
+  if(fuel) document.getElementById('feeFuel').value = fuel;
+
+  if(dates[0]) document.getElementById('orderDate').value = koDateToInput(dates[0]);
+
+  const filteredNotes = noteLines.filter(n=>!GREETING_STOP.includes(n));
+  if(filteredNotes.length) document.getElementById('requestNote').value = filteredNotes.join(' / ');
+
+  // try matching a saved 도착지 preset nickname for the currently selected client
+  // (applies even when the order text explicitly says "도착지 XXX" — XXX is often
+  // just a short nickname like "유원지이글" that should expand to the full saved address)
+  const sel = document.getElementById('clientSelect');
+  const c = clients.find(x=>x.id===sel.value);
+  if(c){
+    const matched = c.presets.find(p=> raw.includes(p.name));
+    if(matched){
+      document.getElementById('toAddr').value = matched.address || matched.name;
+      if(matched.phone) document.getElementById('toPhone').value = matched.phone;
+    }
+  }
+
+  toast('자동 추출 완료 — 내용을 확인하고 필요하면 수정하세요');
+}
+
+function firstMatch(text, re){
+  const m = text.match(re);
+  return m ? m[1].trim() : '';
+}
+function normalizePhone(p){
+  const digits = p.replace(/\D/g,'');
+  if(digits.length===11) return digits.slice(0,3)+'-'+digits.slice(3,7)+'-'+digits.slice(7);
+  if(digits.length===10) return digits.slice(0,3)+'-'+digits.slice(3,6)+'-'+digits.slice(6);
+  return p;
+}
+function koDateToInput(koDate){
+  const m = koDate.match(/(\d{4})\s?년\s?(\d{1,2})\s?월\s?(\d{1,2})\s?일/);
+  if(!m) return '';
+  const [,y,mo,d] = m;
+  return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+function resetAll(){
+  ['rawOrder','fromAddr','fromPhone','toAddr','toPhone','carName','carNum',
+   'feeMain','feeFuel','driverPhone','requestNote'].forEach(id=>{
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('orderDate').value = '';
+  document.getElementById('clientMsg').value = '';
+  document.getElementById('driverMsg').value = '';
+  document.getElementById('clientSelect').value = '';
+  renderPresetChips();
+}
+
+/* ---------------- generation ---------------- */
+function val(id){ return document.getElementById(id).value.trim(); }
+function fmtMoney(v){
+  if(!v) return '';
+  const n = parseInt(v.replace(/[^\d]/g,''),10);
+  if(isNaN(n)) return v;
+  return n.toLocaleString('ko-KR');
+}
+
+function generateAll(){
+  const from = val('fromAddr'), fromPh = val('fromPhone');
+  const to = val('toAddr'), toPh = val('toPhone');
+  const car = val('carName'), carNum = val('carNum');
+  const fee = val('feeMain'), fuel = val('feeFuel');
+  const date = val('orderDate');
+  const note = val('requestNote');
+  const driverPh = val('driverPhone');
+  const sel = document.getElementById('clientSelect');
+  const clientName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+
+  const dateStr = date ? formatDateKo(date) : '';
+
+  // 1) message to client (의뢰인 확인 문자) — short confirmation style
+  const routeStr = [from, to].filter(Boolean).join('-');
+  const clientLines = [
+    '네 확인이요',
+    [routeStr, car].filter(Boolean).join(' '),
+    toPh,
+    fee ? fmtMoney(fee)+'원' : ''
+  ].filter(Boolean);
+  document.getElementById('clientMsg').value = clientLines.join('\n');
+
+  // 2) message to driver (기사 안내 문자) — full detail
+  const driverLines = [
+    '[탁송 배차 안내]',
+    dateStr,
+    [car, carNum].filter(Boolean).join(' '),
+    '',
+    '▶ 출발: '+ (from||'-'),
+    '   연락처: '+ (fromPh||'-'),
+    '▶ 도착: '+ (to||'-'),
+    '   연락처: '+ (toPh||'-'),
+    '',
+    '탁송료: '+ (fee? fmtMoney(fee)+'원':'-') + (fuel? ' (주유비 '+fmtMoney(fuel)+'원)':''),
+    note ? '요청사항: '+note : '',
+    clientName ? '거래처: '+clientName : '',
+    driverPh ? '기사님 연락처: '+driverPh : ''
+  ].filter(Boolean);
+  document.getElementById('driverMsg').value = driverLines.join('\n');
+
+  toast('문자 생성 완료');
+}
+
+function formatDateKo(isoDate){
+  const [y,m,d] = isoDate.split('-');
+  return `${y}년 ${parseInt(m,10)}월 ${parseInt(d,10)}일`;
+}
+
+/* ---------------- copy ---------------- */
+function copyBox(id, btn){
+  const el = document.getElementById(id);
+  if(!el.value.trim()){ toast('먼저 생성 버튼을 눌러주세요'); return; }
+  copyText(el.value, btn);
+}
+function copyNotionRow(){
+  const raw = val('rawOrder');
+  const from = val('fromAddr'), to = val('toAddr');
+  const fee = val('feeMain'), fuel = val('feeFuel');
+  const date = val('orderDate') ? formatDateKo(val('orderDate')) : '';
+  const car = [val('carName'), val('carNum')].filter(Boolean).join(' ');
+  const sel = document.getElementById('clientSelect');
+  const clientName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+
+  const row = [raw.replace(/\n/g,' / '), from, to, fee, fuel, date, car, clientName].join('\t');
+  copyText(row, null);
+  toast('노션 붙여넣기용으로 복사되었습니다');
+}
+
+function copyText(text, btn){
+  const done = ()=>{
+    if(btn){
+      const original = btn.textContent;
+      btn.textContent = '복사됨 ✓';
+      btn.classList.add('copied');
+      setTimeout(()=>{ btn.textContent = original; btn.classList.remove('copied'); }, 1500);
+    }
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, cb){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if(cb) cb();
+}
+
+/* ---------------- toast ---------------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- init ---------------- */
+renderClientPanel();
+renderClientSelect();
+renderPresetChips();
+document.getElementById('orderDate').valueAsDate = new Date();
+</script>
+
+</body>
+</html>
