@@ -232,13 +232,13 @@
     <div style="margin-top:14px;">
       <div class="field">
         <label>주유영수증 받을 번호 (기사님이 영수증 보낼 곳, 공통)</label>
-        <input id="fuelReceiptPhone" placeholder="010-0000-0000" onchange="saveSettings()" />
+        <input id="fuelReceiptPhone" placeholder="010-0000-0000" />
       </div>
       <div class="field">
         <label>새 거래처 이름</label>
         <div style="display:flex;gap:8px;">
           <input id="newClientName" placeholder="예: 제이에스무역" />
-          <button class="btn" style="flex:0 0 80px;" onclick="addClient()">추가</button>
+          <button class="btn" id="btnAddClient" style="flex:0 0 80px;">추가</button>
         </div>
       </div>
       <div id="clientList"></div>
@@ -248,15 +248,15 @@
   <div class="section-title"><span class="num">1</span> 오더 붙여넣기</div>
   <textarea id="rawOrder" placeholder="카카오톡 오더 내용을 그대로 붙여넣으세요"></textarea>
   <div class="row-buttons">
-    <button class="btn" onclick="autoExtract()">자동 추출</button>
-    <button class="btn" onclick="resetAll()">초기화</button>
+    <button class="btn" id="btnAutoExtract">자동 추출</button>
+    <button class="btn" id="btnReset">초기화</button>
   </div>
 
   <div class="section-title"><span class="num">2</span> 오더 확인</div>
 
   <div class="field">
     <label>거래처</label>
-    <select id="clientSelect" onchange="onClientChange()"></select>
+    <select id="clientSelect"></select>
   </div>
 
   <div class="grid2">
@@ -313,13 +313,13 @@
   </div>
 
   <div class="section-title"><span class="num">3</span> 한 번에 생성</div>
-  <button class="btn-primary" onclick="generateAll()">거래처 확인문자 + 기사문자 생성</button>
+  <button class="btn-primary" id="btnGenerate">거래처 확인문자 + 기사문자 생성</button>
   <div class="hint">생성된 문자는 복사 전 아래 박스에서 자유롭게 고쳐 쓸 수 있어요.</div>
 
   <div class="output-box">
     <div class="label-row">
       <span>📩 거래처(의뢰인)에게 보낼 확인 문자</span>
-      <button class="copy-btn" onclick="copyBox('clientMsg', this)">복사</button>
+      <button class="copy-btn" id="btnCopyClientMsg">복사</button>
     </div>
     <textarea id="clientMsg"></textarea>
   </div>
@@ -327,12 +327,12 @@
   <div class="output-box">
     <div class="label-row">
       <span>🚗 기사에게 보낼 안내 문자</span>
-      <button class="copy-btn" onclick="copyBox('driverMsg', this)">복사</button>
+      <button class="copy-btn" id="btnCopyDriverMsg">복사</button>
     </div>
     <textarea id="driverMsg"></textarea>
   </div>
 
-  <button class="btn-ghost" onclick="copyNotionRow()">노션 붙여넣기용 복사</button>
+  <button class="btn-ghost" id="btnCopyNotion">노션 붙여넣기용 복사</button>
   <div class="hint">
     "탁송 오더 관리" 표를 열고 빈 행에 붙여넣기 하면 오더/출발지/도착지/금액/주유비/날짜/차량/거래처 순서로 채워집니다.
   </div>
@@ -426,21 +426,21 @@ function renderClientPanel(){
       <div class="head">
         <strong>${esc(c.name)}</strong>
         <div style="display:flex;gap:6px;">
-          <button class="small-btn" onclick="renameClient('${c.id}')">이름변경</button>
-          <button class="small-btn danger" onclick="deleteClient('${c.id}')">삭제</button>
+          <button class="small-btn" data-action="rename-client" data-id="${c.id}">이름변경</button>
+          <button class="small-btn danger" data-action="delete-client" data-id="${c.id}">삭제</button>
         </div>
       </div>
 
       <div class="field" style="margin-bottom:8px;">
         <label>사업자번호 (주유영수증 지출증빙용)</label>
         <input value="${esc(c.bizNumber||'')}" placeholder="예: 321-44-01287"
-          onchange="updateClientField('${c.id}','bizNumber',this.value)" />
+          data-action="update-field" data-id="${c.id}" data-field="bizNumber" />
       </div>
 
       <div class="field" style="margin-bottom:4px;">
         <label>
           <input type="checkbox" ${c.useMapInstead?'checked':''}
-            onchange="updateClientField('${c.id}','useMapInstead',this.checked)"
+            data-action="update-field" data-id="${c.id}" data-field="useMapInstead"
             style="width:auto;vertical-align:middle;margin-right:6px;" />
           도착지는 약도로 별도 전달 (문자에 주소 대신 안내 문구 표시)
         </label>
@@ -450,13 +450,13 @@ function renderClientPanel(){
         <div class="field" style="margin-bottom:8px;">
           <label>장소 메모 (약도 속 지명, 예: 송도유원지)</label>
           <input value="${esc(c.mapNote||'')}" placeholder="예: 송도유원지"
-            onchange="updateClientField('${c.id}','mapNote',this.value)" />
+            data-action="update-field" data-id="${c.id}" data-field="mapNote" />
         </div>
       ` : `
         <div class="field" style="margin-bottom:8px;">
           <label>고정 도착지 (매번 같으면 입력, 매번 다르면 비워두기)</label>
           <input value="${esc(c.defaultArrival||'')}" placeholder="예: 능허대로50"
-            onchange="updateClientField('${c.id}','defaultArrival',this.value)" />
+            data-action="update-field" data-id="${c.id}" data-field="defaultArrival" />
         </div>
       `}
 
@@ -467,7 +467,7 @@ function renderClientPanel(){
               <div>${esc(p.name)}</div>
               <div class="meta">${esc(p.address||'')}${p.phone? ' · '+esc(p.phone):''}</div>
             </div>
-            <button class="small-btn danger" onclick="deletePreset('${c.id}','${p.id}')">삭제</button>
+            <button class="small-btn danger" data-action="delete-preset" data-id="${c.id}" data-preset-id="${p.id}">삭제</button>
           </div>
         `).join('') || '<div class="meta" style="padding:6px 0;">등록된 도착지 프리셋(별칭) 없음</div>'}
       </div>
@@ -475,7 +475,7 @@ function renderClientPanel(){
         <input placeholder="별칭 (예: 유원지이글)" id="pname_${c.id}" />
         <input placeholder="연락처 (선택)" id="pphone_${c.id}" />
         <input placeholder="전체 주소" id="paddr_${c.id}" style="grid-column:span 2;" />
-        <button class="btn" onclick="addPreset('${c.id}')">이 거래처에 도착지 프리셋(별칭) 추가</button>
+        <button class="btn" data-action="add-preset" data-id="${c.id}">이 거래처에 도착지 프리셋(별칭) 추가</button>
       </div>
     `;
     list.appendChild(card);
@@ -951,6 +951,35 @@ function toast(msg){
 function esc(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+/* ---------------- event bindings (no inline on* attributes — some hosts/CSPs block those) ---------------- */
+document.getElementById('fuelReceiptPhone').addEventListener('change', saveSettings);
+document.getElementById('btnAddClient').addEventListener('click', addClient);
+document.getElementById('btnAutoExtract').addEventListener('click', autoExtract);
+document.getElementById('btnReset').addEventListener('click', resetAll);
+document.getElementById('clientSelect').addEventListener('change', onClientChange);
+document.getElementById('btnGenerate').addEventListener('click', generateAll);
+document.getElementById('btnCopyClientMsg').addEventListener('click', function(){ copyBox('clientMsg', this); });
+document.getElementById('btnCopyDriverMsg').addEventListener('click', function(){ copyBox('driverMsg', this); });
+document.getElementById('btnCopyNotion').addEventListener('click', copyNotionRow);
+
+// event delegation for the dynamically-rendered client cards (⚙️ 패널)
+document.getElementById('clientList').addEventListener('click', e=>{
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+  if(action==='rename-client') renameClient(id);
+  else if(action==='delete-client') deleteClient(id);
+  else if(action==='delete-preset') deletePreset(id, btn.dataset.presetId);
+  else if(action==='add-preset') addPreset(id);
+});
+document.getElementById('clientList').addEventListener('change', e=>{
+  const el = e.target.closest('[data-action="update-field"]');
+  if(!el) return;
+  const value = el.type==='checkbox' ? el.checked : el.value;
+  updateClientField(el.dataset.id, el.dataset.field, value);
+});
 
 /* ---------------- init ---------------- */
 document.getElementById('fuelReceiptPhone').value = settings.fuelReceiptPhone;
