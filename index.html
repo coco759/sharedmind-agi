@@ -178,6 +178,7 @@
   }
   .output-box .label-row span{font-size:13px;font-weight:700;color:var(--accent1);}
   .output-box textarea{min-height:110px;background:#101012;font-size:13.5px;line-height:1.55;}
+  .output-box textarea#driverMsg{min-height:300px;}
   .copy-btn{
     background:var(--input);
     border:1px solid var(--border);
@@ -229,6 +230,10 @@
   <details id="clientPanel">
     <summary>⚙️ 거래처 &amp; 도착지 프리셋 관리</summary>
     <div style="margin-top:14px;">
+      <div class="field">
+        <label>주유영수증 받을 번호 (기사님이 영수증 보낼 곳, 공통)</label>
+        <input id="fuelReceiptPhone" placeholder="010-0000-0000" onchange="saveSettings()" />
+      </div>
       <div class="field">
         <label>새 거래처 이름</label>
         <div style="display:flex;gap:8px;">
@@ -309,13 +314,14 @@
 
   <div class="section-title"><span class="num">3</span> 한 번에 생성</div>
   <button class="btn-primary" onclick="generateAll()">거래처 확인문자 + 기사문자 생성</button>
+  <div class="hint">생성된 문자는 복사 전 아래 박스에서 자유롭게 고쳐 쓸 수 있어요.</div>
 
   <div class="output-box">
     <div class="label-row">
       <span>📩 거래처(의뢰인)에게 보낼 확인 문자</span>
       <button class="copy-btn" onclick="copyBox('clientMsg', this)">복사</button>
     </div>
-    <textarea id="clientMsg" readonly></textarea>
+    <textarea id="clientMsg"></textarea>
   </div>
 
   <div class="output-box">
@@ -323,7 +329,7 @@
       <span>🚗 기사에게 보낼 안내 문자</span>
       <button class="copy-btn" onclick="copyBox('driverMsg', this)">복사</button>
     </div>
-    <textarea id="driverMsg" readonly></textarea>
+    <textarea id="driverMsg"></textarea>
   </div>
 
   <button class="btn-ghost" onclick="copyNotionRow()">노션 붙여넣기용 복사</button>
@@ -339,25 +345,75 @@
 <script>
 /* ---------------- storage ---------------- */
 const STORAGE_KEY = 'tacsong_clients_v1';
+const SETTINGS_KEY = 'tacsong_settings_v1';
+
+// known example clients + their fixed details — used both to seed a fresh
+// browser and to backfill fields on clients that already exist but predate
+// these settings (bizNumber / defaultArrival / useMapInstead / mapNote)
+const KNOWN_DEFAULTS = {
+  '제이에스무역': { bizNumber: '321-44-01287' }, // 도착지는 매번 달라짐 → 고정값 없음
+  '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하2층' },
+  '두리무역':     { defaultArrival: '능허대로50' },
+  '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
+};
+
+function blankClient(name){
+  return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', useMapInstead:false, mapNote:''};
+}
 
 function loadClients(){
+  let list;
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  // seed with example from screenshots
-  return [
-    {id:cid(), name:'제이에스무역', presets:[]},
-    {id:cid(), name:'달렉스무역', presets:[]},
-    {id:cid(), name:'두리무역', presets:[]},
-  ];
+    list = raw ? JSON.parse(raw) : null;
+  }catch(e){ list = null; }
+
+  if(!list){
+    list = Object.keys(KNOWN_DEFAULTS).map(name=>blankClient(name));
+  }
+
+  // backfill any missing fields (older saves) and known example defaults
+  list.forEach(c=>{
+    if(!c.presets) c.presets = [];
+    if(c.bizNumber === undefined) c.bizNumber = '';
+    if(c.defaultArrival === undefined) c.defaultArrival = '';
+    if(c.useMapInstead === undefined) c.useMapInstead = false;
+    if(c.mapNote === undefined) c.mapNote = '';
+    const known = KNOWN_DEFAULTS[c.name];
+    if(known){
+      Object.keys(known).forEach(k=>{
+        if(!c[k]) c[k] = known[k];
+      });
+    }
+  });
+
+  // make sure 이글무역 exists even if it wasn't in an older save
+  if(!list.some(c=>c.name==='이글무역')){
+    list.push(blankClient('이글무역'));
+    Object.assign(list[list.length-1], KNOWN_DEFAULTS['이글무역']);
+  }
+
+  return list;
 }
 function saveClients(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
 }
 function cid(){ return 'c'+Math.random().toString(36).slice(2,9); }
 
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if(raw) return Object.assign({fuelReceiptPhone:'010-9642-3113'}, JSON.parse(raw));
+  }catch(e){}
+  return {fuelReceiptPhone:'010-9642-3113'};
+}
+function saveSettings(){
+  settings.fuelReceiptPhone = document.getElementById('fuelReceiptPhone').value.trim();
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
 let clients = loadClients();
+let settings = loadSettings();
 
 /* ---------------- client panel ---------------- */
 function renderClientPanel(){
@@ -374,6 +430,36 @@ function renderClientPanel(){
           <button class="small-btn danger" onclick="deleteClient('${c.id}')">삭제</button>
         </div>
       </div>
+
+      <div class="field" style="margin-bottom:8px;">
+        <label>사업자번호 (주유영수증 지출증빙용)</label>
+        <input value="${esc(c.bizNumber||'')}" placeholder="예: 321-44-01287"
+          onchange="updateClientField('${c.id}','bizNumber',this.value)" />
+      </div>
+
+      <div class="field" style="margin-bottom:4px;">
+        <label>
+          <input type="checkbox" ${c.useMapInstead?'checked':''}
+            onchange="updateClientField('${c.id}','useMapInstead',this.checked)"
+            style="width:auto;vertical-align:middle;margin-right:6px;" />
+          도착지는 약도로 별도 전달 (문자에 주소 대신 안내 문구 표시)
+        </label>
+      </div>
+
+      ${c.useMapInstead ? `
+        <div class="field" style="margin-bottom:8px;">
+          <label>장소 메모 (약도 속 지명, 예: 송도유원지)</label>
+          <input value="${esc(c.mapNote||'')}" placeholder="예: 송도유원지"
+            onchange="updateClientField('${c.id}','mapNote',this.value)" />
+        </div>
+      ` : `
+        <div class="field" style="margin-bottom:8px;">
+          <label>고정 도착지 (매번 같으면 입력, 매번 다르면 비워두기)</label>
+          <input value="${esc(c.defaultArrival||'')}" placeholder="예: 능허대로50"
+            onchange="updateClientField('${c.id}','defaultArrival',this.value)" />
+        </div>
+      `}
+
       <div class="presets-wrap">
         ${c.presets.map(p=>`
           <div class="preset-row">
@@ -383,13 +469,13 @@ function renderClientPanel(){
             </div>
             <button class="small-btn danger" onclick="deletePreset('${c.id}','${p.id}')">삭제</button>
           </div>
-        `).join('') || '<div class="meta" style="padding:6px 0;">등록된 도착지 프리셋 없음</div>'}
+        `).join('') || '<div class="meta" style="padding:6px 0;">등록된 도착지 프리셋(별칭) 없음</div>'}
       </div>
       <div class="add-preset-form">
         <input placeholder="별칭 (예: 유원지이글)" id="pname_${c.id}" />
         <input placeholder="연락처 (선택)" id="pphone_${c.id}" />
         <input placeholder="전체 주소" id="paddr_${c.id}" style="grid-column:span 2;" />
-        <button class="btn" onclick="addPreset('${c.id}')">이 거래처에 도착지 프리셋 추가</button>
+        <button class="btn" onclick="addPreset('${c.id}')">이 거래처에 도착지 프리셋(별칭) 추가</button>
       </div>
     `;
     list.appendChild(card);
@@ -401,11 +487,19 @@ function addClient(){
   const name = input.value.trim();
   if(!name) return;
   if(clients.some(c=>c.name===name)){ toast('이미 있는 거래처 이름입니다'); return; }
-  clients.push({id:cid(), name, presets:[]});
+  clients.push(blankClient(name));
   input.value='';
   saveClients();
   renderClientPanel();
   renderClientSelect();
+}
+function updateClientField(id, field, value){
+  const c = clients.find(x=>x.id===id);
+  if(!c) return;
+  c[field] = value;
+  saveClients();
+  if(field==='useMapInstead') renderClientPanel();
+  if(field==='defaultArrival' || field==='useMapInstead' || field==='mapNote') onClientChange();
 }
 function renameClient(id){
   const c = clients.find(x=>x.id===id);
@@ -445,6 +539,16 @@ function renderClientSelect(){
 }
 function onClientChange(){
   renderPresetChips();
+  const sel = document.getElementById('clientSelect');
+  const c = clients.find(x=>x.id===sel.value);
+  const toAddrEl = document.getElementById('toAddr');
+  if(c && !toAddrEl.value.trim()){
+    if(c.useMapInstead && c.mapNote){
+      toAddrEl.value = c.mapNote;
+    } else if(c.defaultArrival){
+      toAddrEl.value = c.defaultArrival;
+    }
+  }
 }
 function renderPresetChips(){
   const sel = document.getElementById('clientSelect');
@@ -484,6 +588,64 @@ const GREETING_STOP = ['안녕하세요','감사합니다','네','넵','알겠�
 const NOISE_WORDS = ['월요일','화요일','수요일','목요일','금요일','토요일','일요일',
   '오전','오후','배차','부탁드립니다','부탁드려요','부탁합니다','주유비','주유'];
 
+// label words that precede a value on a templated line (예: "주소 : ...", "차량: ...")
+const LABEL_PREFIX_RE = /^(주소|차량|배차금액|탁송료|연락처|전화|성명|메모|비고)\s*[:：]?\s*/;
+
+// "출발지: 주소" / "도착 - 주소" style inline labels — the "(?![가-힣])" guard stops this
+// from also matching mid-sentence uses like "...출발지와 도착지를 꼭 다시 확인해...", and
+// "[ \t]*" (not "\s*") keeps the match from silently crossing a newline into the next line
+const EXPLICIT_FROM_RE = /(?:출발지|출발)(?![가-힣])[ \t]*[:：\-]?[ \t]*([^\n]+)/;
+const EXPLICIT_TO_RE = /(?:도착지|도착)(?![가-힣])[ \t]*[:：\-]?[ \t]*([^\n]+)/;
+const LINE_LABEL_STRIP_RE = /^(?:출발지|출발|도착지|도착)(?![가-힣])[ \t]*[:：\-]?[ \t]*/;
+
+// emoji / pictograph bullets commonly used in 배차 안내 템플릿 (🚗 출발, ☎ 010-..., 🚨 필독 등)
+const EMOJI_RE = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu;
+
+// whole lines that are template boilerplate / headers — never usable as address or note content
+const BOILERPLATE_LINE_RE = /^\[.*\]$/; // 예: "[배차 안내]"
+const BOILERPLATE_KEYWORDS = ['기사님 필독','사업자번호','지출증빙','안전운전','하이패스',
+  '계기판','무단통과','정산 불가','영수증','배차 완료','주차 위치'];
+
+function isBoilerplateLine(line){
+  const l = line.trim();
+  if(!l) return true;
+  if(BOILERPLATE_LINE_RE.test(l)) return true;
+  if(/^\d+[.)]\s/.test(l)) return true; // 1. 2. 3. 체크리스트
+  return BOILERPLATE_KEYWORDS.some(k=>l.includes(k));
+}
+function isSectionMarkerLine(line){
+  const stripped = line.replace(EMOJI_RE,'').trim();
+  return stripped==='출발' || stripped==='도착' || stripped==='출발지' || stripped==='도착지';
+}
+
+// scans for "🚗 출발" / "도착" style section headers followed by address+phone lines
+// (as opposed to the single-line "출발지: 주소" form, which explicitFrom/explicitTo already covers)
+function extractSections(raw){
+  const lines = raw.split('\n').map(l=>l.trim());
+  const result = {fromAddr:'', fromPhone:'', toAddr:'', toPhone:''};
+  let current = null;
+  for(const rawLine of lines){
+    const stripped = rawLine.replace(EMOJI_RE,'').trim();
+    if(!stripped) continue;
+    if(stripped==='출발' || stripped==='출발지'){ current='from'; continue; }
+    if(stripped==='도착' || stripped==='도착지'){ current='to'; continue; }
+    if(!current) continue;
+    if(isBoilerplateLine(stripped)){ current=null; continue; }
+    const phoneMatch = stripped.match(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/);
+    if(phoneMatch){
+      const p = normalizePhone(phoneMatch[0]);
+      if(current==='from' && !result.fromPhone) result.fromPhone = p;
+      if(current==='to' && !result.toPhone) result.toPhone = p;
+      continue;
+    }
+    const addrText = stripped.replace(LABEL_PREFIX_RE,'').trim();
+    if(!addrText) continue;
+    if(current==='from' && !result.fromAddr) result.fromAddr = addrText;
+    if(current==='to' && !result.toAddr) result.toAddr = addrText;
+  }
+  return result;
+}
+
 function autoExtract(){
   const raw = document.getElementById('rawOrder').value;
   if(!raw.trim()){ toast('붙여넣을 오더 내용이 없습니다'); return; }
@@ -494,9 +656,12 @@ function autoExtract(){
   const vins = [...text.matchAll(/\b[A-Z0-9]{17}\b/g)].map(m=>m[0]);
   const dates = [...text.matchAll(/\d{4}\s?년\s?\d{1,2}\s?월\s?\d{1,2}\s?일/g)].map(m=>m[0]);
 
-  // explicit labels take priority
-  const explicitFrom = firstMatch(text, /출발지\s*[:\-]?\s*([^\n]+)/);
-  const explicitTo = firstMatch(text, /도착지\s*[:\-]?\s*([^\n]+)/);
+  // explicit single-line labels take top priority ("출발지: 주소" / "출발: 주소")
+  const explicitFrom = firstMatch(text, EXPLICIT_FROM_RE);
+  const explicitTo = firstMatch(text, EXPLICIT_TO_RE);
+
+  // multi-line "🚗 출발 / 주소 : ... / ☎ ..." style section headers — next priority
+  const sections = extractSections(raw);
 
   // prices: tag ones near "주유" as fuel, others as main fee
   const fuelFee = firstMatch(text, /주유\D{0,6}?(\d[\d,]*)\s?만?\s?원?/);
@@ -510,7 +675,11 @@ function autoExtract(){
   const noteLines = [];
 
   lines.forEach(line=>{
-    let working = line;
+    // template headers, checklist items, and bare "출발"/"도착" markers carry no
+    // extractable content of their own — skip them entirely (handled by extractSections above)
+    if(isBoilerplateLine(line) || isSectionMarkerLine(line)) return;
+
+    let working = line.replace(EMOJI_RE,'').trim();
 
     // strip known entities from the line to check what's left
     working = working.replace(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/g,'').trim();
@@ -518,9 +687,11 @@ function autoExtract(){
     working = working.replace(/\d{4}\s?년\s?\d{1,2}\s?월\s?\d{1,2}\s?일/g,'').trim();
     working = working.replace(/\d{2,3}\s?[가-힣]\s?\d{4}/g,'').trim();
     working = working.replace(/(\d[\d,]{2,})\s?원/g,'').trim();
-    working = working.replace(/출발지\s*[:\-]?\s*/,'').replace(/도착지\s*[:\-]?\s*/,'').trim();
+    working = working.replace(LINE_LABEL_STRIP_RE,'').trim();
+    working = working.replace(LABEL_PREFIX_RE,'').trim();
     NOISE_WORDS.forEach(w=>{ working = working.replace(new RegExp(w,'g'),'').trim(); });
-    working = working.replace(/\(\s*\)/g,'').replace(/\/\s*$/,'').replace(/\s{2,}/g,' ').trim();
+    working = working.replace(/\(\s*\)/g,'').replace(/\/\s*$/,'').replace(/[\[\]]/g,'')
+      .replace(/\s{2,}/g,' ').trim();
 
     const lineIsAddrLike = ADDR_KEYWORDS.some(k=>working.includes(k));
 
@@ -555,13 +726,15 @@ function autoExtract(){
     }
   });
 
-  const fromAddr = explicitFrom || addrLines[0] || '';
-  const toAddr = explicitTo || addrLines[1] || '';
+  const fromAddr = explicitFrom || sections.fromAddr || addrLines[0] || '';
+  const toAddr = explicitTo || sections.toAddr || addrLines[1] || '';
+  const fromPhone = sections.fromPhone || phones[0] || '';
+  const toPhone = sections.toPhone || phones[1] || phones[0] || '';
 
   document.getElementById('fromAddr').value = fromAddr;
   document.getElementById('toAddr').value = toAddr;
-  document.getElementById('fromPhone').value = phones[0] || '';
-  document.getElementById('toPhone').value = phones[1] || phones[0] || '';
+  document.getElementById('fromPhone').value = fromPhone;
+  document.getElementById('toPhone').value = toPhone;
   document.getElementById('carName').value = vehicleName || '';
   document.getElementById('carNum').value = plates[0] || '';
 
@@ -593,6 +766,14 @@ function autoExtract(){
     if(matched){
       document.getElementById('toAddr').value = matched.address || matched.name;
       if(matched.phone) document.getElementById('toPhone').value = matched.phone;
+    } else if(!document.getElementById('toAddr').value.trim()){
+      // nothing detected in the order text — fall back to this client's fixed
+      // destination (달렉스/두리무역 같이 도착지가 항상 같은 거래처) or map note (이글무역)
+      if(c.useMapInstead && c.mapNote){
+        document.getElementById('toAddr').value = c.mapNote;
+      } else if(c.defaultArrival){
+        document.getElementById('toAddr').value = c.defaultArrival;
+      }
     }
   }
 
@@ -660,23 +841,47 @@ function generateAll(){
   ].filter(Boolean);
   document.getElementById('clientMsg').value = clientLines.join('\n');
 
-  // 2) message to driver (기사 안내 문자) — full detail
+  // 2) message to driver (기사 안내 문자) — company-standard 배차 안내 양식
+  const client = clients.find(x=>x.id===sel.value);
+  const bizNumber = client && client.bizNumber ? client.bizNumber : '(사업자번호 미등록 — 거래처 설정에서 입력)';
+  const receiptPhone = settings.fuelReceiptPhone || '(주유영수증 받을 번호 미설정)';
+
+  let arrivalBlock;
+  if(client && client.useMapInstead){
+    const place = client.mapNote || to || '도착지';
+    arrivalBlock = `${place} (도착지 약도는 사장님이 별도로 보내드릴게요)`;
+  } else {
+    arrivalBlock = to || '-';
+  }
+
   const driverLines = [
-    '[탁송 배차 안내]',
-    dateStr,
-    [car, carNum].filter(Boolean).join(' '),
+    '[배차 안내]',
+    `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
+    fee ? `배차금액: ${fmtMoney(fee)}원` : '',
     '',
-    '▶ 출발: '+ (from||'-'),
-    '   연락처: '+ (fromPh||'-'),
-    '▶ 도착: '+ (to||'-'),
-    '   연락처: '+ (toPh||'-'),
+    '🚗 출발',
+    `주소 : ${from || '-'}`,
     '',
-    '탁송료: '+ (fee? fmtMoney(fee)+'원':'-') + (fuel? ' (주유비 '+fmtMoney(fuel)+'원)':''),
-    note ? '요청사항: '+note : '',
-    clientName ? '거래처: '+clientName : '',
-    driverPh ? '기사님 연락처: '+driverPh : ''
-  ].filter(Boolean);
-  document.getElementById('driverMsg').value = driverLines.join('\n');
+    `☎ ${fromPh || '-'}`,
+    '',
+    '도착',
+    arrivalBlock,
+    '',
+    `☎ ${toPh || '-'}`,
+    '',
+    note || '',
+    '',
+    '🚨 기사님 필독 사항',
+    '1. 배차 즉시: 도착지 고객에게 연락 (배차 완료 안내)',
+    '2. 운행 전/후: 차량 사진 & 계기판 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
+    '3. 통행료: 기사님 부담 (하이패스 미납, 무단통과 시 정산 불가 및 배차 제한)',
+    `4. 주유 영수증: [주유 영수증 + 차량번호]를 ${receiptPhone}으로 전송. 주유 필요시 계기판 사진 전송 후 주유 안내 받고 주유`,
+    `     사업자번호: ${bizNumber} (지출증빙)`,
+    '     ※ 위 사업자번호로 발행되지 않은 영수증은 주유비 지급 불가',
+    '※ 운행 전 출발지와 도착지를 꼭 다시 확인해 주세요. 안전운전 하세요!'
+  ];
+  // collapse the intentionally-blank spacer lines down to single blank lines
+  document.getElementById('driverMsg').value = driverLines.join('\n').replace(/\n{3,}/g,'\n\n');
 
   toast('문자 생성 완료');
 }
@@ -748,6 +953,7 @@ function esc(s){
 }
 
 /* ---------------- init ---------------- */
+document.getElementById('fuelReceiptPhone').value = settings.fuelReceiptPhone;
 renderClientPanel();
 renderClientSelect();
 renderPresetChips();
