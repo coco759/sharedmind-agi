@@ -396,7 +396,9 @@ function loadClients(){
   return list;
 }
 function saveClients(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
+  // some preview/embedded contexts sandbox localStorage and throw on access —
+  // never let a storage failure break the button that triggered it
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(clients)); }catch(e){ console.warn('거래처 저장 실패(저장소 접근 불가):', e); }
 }
 function cid(){ return 'c'+Math.random().toString(36).slice(2,9); }
 
@@ -409,7 +411,7 @@ function loadSettings(){
 }
 function saveSettings(){
   settings.fuelReceiptPhone = document.getElementById('fuelReceiptPhone').value.trim();
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }catch(e){ console.warn('설정 저장 실패(저장소 접근 불가):', e); }
 }
 
 let clients = loadClients();
@@ -952,41 +954,65 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* ---------------- event bindings (no inline on* attributes — some hosts/CSPs block those) ---------------- */
-document.getElementById('fuelReceiptPhone').addEventListener('change', saveSettings);
-document.getElementById('btnAddClient').addEventListener('click', addClient);
-document.getElementById('btnAutoExtract').addEventListener('click', autoExtract);
-document.getElementById('btnReset').addEventListener('click', resetAll);
-document.getElementById('clientSelect').addEventListener('change', onClientChange);
-document.getElementById('btnGenerate').addEventListener('click', generateAll);
-document.getElementById('btnCopyClientMsg').addEventListener('click', function(){ copyBox('clientMsg', this); });
-document.getElementById('btnCopyDriverMsg').addEventListener('click', function(){ copyBox('driverMsg', this); });
-document.getElementById('btnCopyNotion').addEventListener('click', copyNotionRow);
+/* ---------------- event bindings + init (defensive) ----------------
+   No inline on* attributes — some preview/hosting environments block those
+   via CSP. Everything below also runs inside try/catch blocks, each scoped
+   narrowly, so that a failure in one part (e.g. localStorage being blocked
+   in a sandboxed iframe) can never prevent the other parts from working —
+   in particular, the core 오더 붙여넣기 → 자동추출 → 생성 → 복사 flow must
+   always bind even if the 거래처 설정 panel's storage access fails. */
+function safeInit(label, fn){
+  try{ fn(); }
+  catch(e){ console.error('[탁송 오더 매니저] '+label+' 초기화 실패:', e); }
+}
 
-// event delegation for the dynamically-rendered client cards (⚙️ 패널)
-document.getElementById('clientList').addEventListener('click', e=>{
-  const btn = e.target.closest('[data-action]');
-  if(!btn) return;
-  const action = btn.dataset.action;
-  const id = btn.dataset.id;
-  if(action==='rename-client') renameClient(id);
-  else if(action==='delete-client') deleteClient(id);
-  else if(action==='delete-preset') deletePreset(id, btn.dataset.presetId);
-  else if(action==='add-preset') addPreset(id);
-});
-document.getElementById('clientList').addEventListener('change', e=>{
-  const el = e.target.closest('[data-action="update-field"]');
-  if(!el) return;
-  const value = el.type==='checkbox' ? el.checked : el.value;
-  updateClientField(el.dataset.id, el.dataset.field, value);
+// 1) core flow — always try to bind these first, independent of everything else
+safeInit('핵심 버튼(자동추출/생성/복사/초기화)', ()=>{
+  document.getElementById('btnAutoExtract').addEventListener('click', autoExtract);
+  document.getElementById('btnReset').addEventListener('click', resetAll);
+  document.getElementById('btnGenerate').addEventListener('click', generateAll);
+  document.getElementById('btnCopyClientMsg').addEventListener('click', function(){ copyBox('clientMsg', this); });
+  document.getElementById('btnCopyDriverMsg').addEventListener('click', function(){ copyBox('driverMsg', this); });
+  document.getElementById('btnCopyNotion').addEventListener('click', copyNotionRow);
+  document.getElementById('orderDate').valueAsDate = new Date();
 });
 
-/* ---------------- init ---------------- */
-document.getElementById('fuelReceiptPhone').value = settings.fuelReceiptPhone;
-renderClientPanel();
-renderClientSelect();
-renderPresetChips();
-document.getElementById('orderDate').valueAsDate = new Date();
+// 2) 거래처 선택 + 설정 패널
+safeInit('거래처 선택박스', ()=>{
+  document.getElementById('clientSelect').addEventListener('change', onClientChange);
+});
+safeInit('주유영수증 번호 입력', ()=>{
+  document.getElementById('fuelReceiptPhone').addEventListener('change', saveSettings);
+  document.getElementById('fuelReceiptPhone').value = settings.fuelReceiptPhone;
+});
+safeInit('새 거래처 추가 버튼', ()=>{
+  document.getElementById('btnAddClient').addEventListener('click', addClient);
+});
+
+// 3) event delegation for the dynamically-rendered client cards (⚙️ 패널)
+safeInit('거래처 카드 이벤트 위임', ()=>{
+  document.getElementById('clientList').addEventListener('click', e=>{
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    if(action==='rename-client') renameClient(id);
+    else if(action==='delete-client') deleteClient(id);
+    else if(action==='delete-preset') deletePreset(id, btn.dataset.presetId);
+    else if(action==='add-preset') addPreset(id);
+  });
+  document.getElementById('clientList').addEventListener('change', e=>{
+    const el = e.target.closest('[data-action="update-field"]');
+    if(!el) return;
+    const value = el.type==='checkbox' ? el.checked : el.value;
+    updateClientField(el.dataset.id, el.dataset.field, value);
+  });
+});
+
+// 4) render — each independent so one failing doesn't block the others
+safeInit('거래처 패널 렌더링', renderClientPanel);
+safeInit('거래처 선택박스 렌더링', renderClientSelect);
+safeInit('프리셋 칩 렌더링', renderPresetChips);
 </script>
 
 </body>
