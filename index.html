@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>탁송 오더 매니저</title>
 <style>
+  /* dark-first token set (this tool's native look — matches the dispatcher's
+     own reference screenshots, used at night). Bare :root = dark; a light
+     override applies only when the OS prefers light AND no explicit dark
+     stamp is set, and an explicit data-theme always wins in either direction. */
   :root{
     --bg:#0b0b0d;
     --card:#18181b;
@@ -14,8 +18,55 @@
     --sub:#9a9aa2;
     --accent1:#ff8a3d;
     --accent2:#ff5722;
+    --accent-ink:#181205;
     --danger:#ff5c5c;
     --ok:#3ddc84;
+    --notice-bg:#2a2408;
+    --notice-border:#4a3f10;
+    --notice-text:#e8cf6a;
+    --chip-active-bg:#2a1c10;
+    --output-bg:#101012;
+    --footer-bg:#0b0b0dee;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f6f4f1;
+      --card:#ffffff;
+      --input:#efeae2;
+      --border:#e2ddd2;
+      --text:#211d17;
+      --sub:#726b5e;
+      --accent1:#e2661a;
+      --accent2:#c8460f;
+      --accent-ink:#fff8f1;
+      --danger:#c8362b;
+      --ok:#1f8a52;
+      --notice-bg:#fbf0d2;
+      --notice-border:#e6cf8a;
+      --notice-text:#7a5c0a;
+      --chip-active-bg:#fbe3d0;
+      --output-bg:#faf8f4;
+      --footer-bg:#f6f4f1ee;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f4f1;
+    --card:#ffffff;
+    --input:#efeae2;
+    --border:#e2ddd2;
+    --text:#211d17;
+    --sub:#726b5e;
+    --accent1:#e2661a;
+    --accent2:#c8460f;
+    --accent-ink:#fff8f1;
+    --danger:#c8362b;
+    --ok:#1f8a52;
+    --notice-bg:#fbf0d2;
+    --notice-border:#e6cf8a;
+    --notice-text:#7a5c0a;
+    --chip-active-bg:#fbe3d0;
+    --output-bg:#faf8f4;
+    --footer-bg:#f6f4f1ee;
   }
   *{box-sizing:border-box;}
   body{
@@ -36,7 +87,7 @@
     width:48px;height:48px;border-radius:12px;
     background:linear-gradient(135deg,var(--accent1),var(--accent2));
     display:flex;align-items:center;justify-content:center;
-    font-weight:800;font-size:18px;color:#111;
+    font-weight:800;font-size:18px;color:var(--accent-ink);
     flex-shrink:0;
   }
   header h1{font-size:18px;margin:0;}
@@ -44,9 +95,9 @@
 
   .container{padding:16px;max-width:720px;margin:0 auto;}
   .notice{
-    background:#2a2408;
-    border:1px solid #4a3f10;
-    color:#e8cf6a;
+    background:var(--notice-bg);
+    border:1px solid var(--notice-border);
+    color:var(--notice-text);
     border-radius:10px;
     padding:12px 14px;
     font-size:13px;
@@ -62,7 +113,7 @@
   }
   .section-title .num{
     background:linear-gradient(135deg,var(--accent1),var(--accent2));
-    color:#111;
+    color:var(--accent-ink);
     width:20px;height:20px;border-radius:6px;
     display:inline-flex;align-items:center;justify-content:center;
     font-size:12px;font-weight:800;
@@ -76,6 +127,11 @@
     padding:12px 14px;
     font-size:14px;
     font-family:inherit;
+    font-variant-numeric:tabular-nums;
+  }
+  input:focus, textarea:focus, select:focus, button:focus-visible{
+    outline:2px solid var(--accent1);
+    outline-offset:1px;
   }
   textarea::placeholder, input::placeholder{color:#6d6d75;}
   textarea{resize:vertical;min-height:120px;}
@@ -102,7 +158,7 @@
   .btn-primary{
     width:100%;
     background:linear-gradient(135deg,var(--accent1),var(--accent2));
-    color:#181205;
+    color:var(--accent-ink);
     padding:16px;
     border-radius:12px;
     font-size:15.5px;
@@ -128,10 +184,23 @@
     border-radius:999px;
     font-size:12.5px;
   }
+  .client-chips{margin-top:0;}
+  .client-chips .chip{
+    padding:11px 16px;
+    font-size:14px;
+    font-weight:600;
+    color:var(--text);
+  }
+  .client-chips .chip.active{
+    background:linear-gradient(135deg,var(--accent1),var(--accent2));
+    border-color:transparent;
+    color:var(--accent-ink);
+  }
+  .client-chips .empty{color:var(--sub);font-size:13px;padding:6px 0;}
   .chip.active{
     border-color:var(--accent1);
     color:var(--accent1);
-    background:#2a1c10;
+    background:var(--chip-active-bg);
   }
   .chip .x{margin-left:6px;color:var(--danger);}
   .client-card{
@@ -177,7 +246,7 @@
     display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
   }
   .output-box .label-row span{font-size:13px;font-weight:700;color:var(--accent1);}
-  .output-box textarea{min-height:110px;background:#101012;font-size:13.5px;line-height:1.55;}
+  .output-box textarea{min-height:110px;background:var(--output-bg);font-size:13.5px;line-height:1.55;font-variant-numeric:tabular-nums;}
   .output-box textarea#driverMsg{min-height:300px;}
   .copy-btn{
     background:var(--input);
@@ -192,7 +261,7 @@
   .hint{font-size:11.5px;color:var(--sub);margin-top:8px;line-height:1.5;}
   .toast{
     position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
-    background:#1f1f22;border:1px solid var(--border);
+    background:var(--input);border:1px solid var(--border);
     color:var(--text);padding:10px 18px;border-radius:999px;
     font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
     z-index:50;
@@ -202,7 +271,7 @@
   details summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--text);}
   footer{
     position:fixed;bottom:0;left:0;right:0;
-    background:#0b0b0dee;
+    background:var(--footer-bg);
     border-top:1px solid var(--border);
     text-align:center;
     padding:8px;
@@ -255,8 +324,9 @@
   <div class="section-title"><span class="num">2</span> 오더 확인</div>
 
   <div class="field">
-    <label>거래처</label>
-    <select id="clientSelect"></select>
+    <label>거래처 (탭해서 선택)</label>
+    <div id="clientChips" class="chips client-chips"></div>
+    <select id="clientSelect" style="display:none" aria-hidden="true"></select>
   </div>
 
   <div class="grid2">
@@ -532,12 +602,37 @@ function deletePreset(clientId, presetId){
 }
 
 /* ---------------- client select + preset chips ---------------- */
+// the visible picker is a row of tap-to-select chips; the <select> underneath
+// is kept in sync and is what the rest of the app (autoExtract/generateAll/etc)
+// actually reads from — this way one source of truth, two ways to reach it.
 function renderClientSelect(){
   const sel = document.getElementById('clientSelect');
   const cur = sel.value;
   sel.innerHTML = '<option value="">-- 거래처 선택 --</option>' +
     clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
   if(clients.some(c=>c.id===cur)) sel.value = cur;
+  renderClientChips();
+}
+function renderClientChips(){
+  const sel = document.getElementById('clientSelect');
+  const wrap = document.getElementById('clientChips');
+  wrap.innerHTML = '';
+  if(!clients.length){
+    wrap.innerHTML = '<div class="empty">⚙️ 거래처 설정에서 먼저 거래처를 추가하세요</div>';
+    return;
+  }
+  clients.forEach(c=>{
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip' + (sel.value===c.id ? ' active' : '');
+    chip.textContent = c.name;
+    chip.addEventListener('click', ()=>{
+      sel.value = (sel.value===c.id) ? '' : c.id; // tap again to deselect
+      sel.dispatchEvent(new Event('change'));
+      renderClientChips();
+    });
+    wrap.appendChild(chip);
+  });
 }
 function onClientChange(){
   renderPresetChips();
@@ -808,6 +903,7 @@ function resetAll(){
   document.getElementById('clientMsg').value = '';
   document.getElementById('driverMsg').value = '';
   document.getElementById('clientSelect').value = '';
+  renderClientChips();
   renderPresetChips();
 }
 
