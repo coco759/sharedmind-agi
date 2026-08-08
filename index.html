@@ -770,12 +770,20 @@ function autoExtract(){
   const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
   const addrLines = [];
   const noteLines = [];
+  // real KakaoTalk order text often splits one location across several lines —
+  // a street address line, then a detail line like "뒤 주차장" / "지하1층" /
+  // "정문 앞" that also happens to contain an ADDR_KEYWORDS word. Track whether
+  // the previous line contributed to the address currently being built so those
+  // continuation lines get appended to it instead of starting a new location —
+  // a phone number (or a note/vehicle line) closes the current location.
+  let buildingAddr = false;
 
   lines.forEach(line=>{
     // template headers, checklist items, and bare "출발"/"도착" markers carry no
     // extractable content of their own — skip them entirely (handled by extractSections above)
     if(isBoilerplateLine(line) || isSectionMarkerLine(line)) return;
 
+    const isPhoneLine = /01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/.test(line);
     let working = line.replace(EMOJI_RE,'').trim();
 
     // strip known entities from the line to check what's left
@@ -806,21 +814,26 @@ function autoExtract(){
       }
     }
 
-    if(!working) return;
-    if(GREETING_STOP.includes(working)) return;
-    if(working === vehicleName && !lineIsAddrLike) return;
+    if(!working){ if(isPhoneLine) buildingAddr = false; return; }
+    if(GREETING_STOP.includes(working)){ buildingAddr = false; return; }
+    if(working === vehicleName && !lineIsAddrLike){ buildingAddr = false; return; }
 
     const looksLikeTime = /\d\s?시(\s|$)|\d\s?시\d|\d\s?분(\s|$)/.test(working);
     const isAddrLike = !looksLikeTime && lineIsAddrLike;
-    if(isAddrLike){
-      addrLines.push(working);
-    } else if(working.length <= 12 && !/\d/.test(working)){
-      // short token with no digits at all, could be a nickname/location (e.g. "유원지이글")
-      // — if not already used as vehicle name, treat as address-ish note
-      if(working !== vehicleName) addrLines.push(working);
+    const isNicknameLike = !isAddrLike && working.length <= 12 && !/\d/.test(working) && working !== vehicleName;
+
+    if(isAddrLike || isNicknameLike){
+      if(buildingAddr && addrLines.length){
+        addrLines[addrLines.length-1] += ' ' + working;
+      } else {
+        addrLines.push(working);
+      }
+      buildingAddr = true;
     } else {
       noteLines.push(working);
+      buildingAddr = false;
     }
+    if(isPhoneLine) buildingAddr = false; // a phone on this line closes the location either way
   });
 
   const fromAddr = explicitFrom || sections.fromAddr || addrLines[0] || '';
