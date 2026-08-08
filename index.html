@@ -419,16 +419,16 @@ const SETTINGS_KEY = 'tacsong_settings_v1';
 
 // known example clients + their fixed details — used both to seed a fresh
 // browser and to backfill fields on clients that already exist but predate
-// these settings (bizNumber / defaultArrival / useMapInstead / mapNote)
+// these settings (bizNumber / defaultArrival / defaultArrivalPhone / useMapInstead / mapNote)
 const KNOWN_DEFAULTS = {
   '제이에스무역': { bizNumber: '321-44-01287' }, // 도착지는 매번 달라짐 → 고정값 없음
-  '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', bizNumber: '6118603456' },
+  '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', defaultArrivalPhone: '010-6231-4179', bizNumber: '6118603456' },
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
 };
 
 function blankClient(name){
-  return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', useMapInstead:false, mapNote:''};
+  return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', defaultArrivalPhone:'', useMapInstead:false, mapNote:''};
 }
 
 function loadClients(){
@@ -447,6 +447,7 @@ function loadClients(){
     if(!c.presets) c.presets = [];
     if(c.bizNumber === undefined) c.bizNumber = '';
     if(c.defaultArrival === undefined) c.defaultArrival = '';
+    if(c.defaultArrivalPhone === undefined) c.defaultArrivalPhone = '';
     if(c.useMapInstead === undefined) c.useMapInstead = false;
     if(c.mapNote === undefined) c.mapNote = '';
     const known = KNOWN_DEFAULTS[c.name];
@@ -525,10 +526,17 @@ function renderClientPanel(){
             data-action="update-field" data-id="${c.id}" data-field="mapNote" />
         </div>
       ` : `
-        <div class="field" style="margin-bottom:8px;">
-          <label>고정 도착지 (매번 같으면 입력, 매번 다르면 비워두기)</label>
-          <input value="${esc(c.defaultArrival||'')}" placeholder="예: 능허대로50"
-            data-action="update-field" data-id="${c.id}" data-field="defaultArrival" />
+        <div class="grid2" style="margin-bottom:8px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>고정 도착지 (매번 같으면 입력, 매번 다르면 비워두기)</label>
+            <input value="${esc(c.defaultArrival||'')}" placeholder="예: 능허대로50"
+              data-action="update-field" data-id="${c.id}" data-field="defaultArrival" />
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>고정 도착 연락처</label>
+            <input value="${esc(c.defaultArrivalPhone||'')}" placeholder="예: 010-0000-0000"
+              data-action="update-field" data-id="${c.id}" data-field="defaultArrivalPhone" />
+          </div>
         </div>
       `}
 
@@ -571,7 +579,7 @@ function updateClientField(id, field, value){
   c[field] = value;
   saveClients();
   if(field==='useMapInstead') renderClientPanel();
-  if(field==='defaultArrival' || field==='useMapInstead' || field==='mapNote') onClientChange();
+  if(field==='defaultArrival' || field==='defaultArrivalPhone' || field==='useMapInstead' || field==='mapNote') onClientChange();
 }
 function renameClient(id){
   const c = clients.find(x=>x.id===id);
@@ -639,12 +647,16 @@ function onClientChange(){
   const sel = document.getElementById('clientSelect');
   const c = clients.find(x=>x.id===sel.value);
   const toAddrEl = document.getElementById('toAddr');
+  const toPhoneEl = document.getElementById('toPhone');
   if(c && !toAddrEl.value.trim()){
     if(c.useMapInstead && c.mapNote){
       toAddrEl.value = c.mapNote;
     } else if(c.defaultArrival){
       toAddrEl.value = c.defaultArrival;
     }
+  }
+  if(c && !toPhoneEl.value.trim() && c.defaultArrivalPhone){
+    toPhoneEl.value = c.defaultArrivalPhone;
   }
 }
 function renderPresetChips(){
@@ -837,14 +849,24 @@ function autoExtract(){
   });
 
   const fromAddr = explicitFrom || sections.fromAddr || addrLines[0] || '';
-  const toAddr = explicitTo || sections.toAddr || addrLines[1] || '';
   const fromPhone = sections.fromPhone || phones[0] || '';
-  const toPhone = sections.toPhone || phones[1] || phones[0] || '';
+
+  // toAddr/toPhone: track whether the value came from something that actually
+  // names the destination (explicit label / structured section / preset nickname)
+  // versus a positional guess (addrLines[1], "whatever phone number is left over").
+  // A client's fixed 고정 도착지/연락처 (예: 달렉스무역) should win over the guess —
+  // for those clients the order text usually only mentions the pickup contact —
+  // but must never overwrite an actually-named destination.
+  let toAddr = explicitTo || sections.toAddr || '';
+  let toAddrConfident = !!toAddr;
+  if(!toAddr) toAddr = addrLines[1] || '';
+
+  let toPhone = sections.toPhone || '';
+  let toPhoneConfident = !!toPhone;
+  if(!toPhone) toPhone = phones[1] || phones[0] || '';
 
   document.getElementById('fromAddr').value = fromAddr;
-  document.getElementById('toAddr').value = toAddr;
   document.getElementById('fromPhone').value = fromPhone;
-  document.getElementById('toPhone').value = toPhone;
   document.getElementById('carName').value = vehicleName || '';
   document.getElementById('carNum').value = plates[0] || '';
 
@@ -874,18 +896,22 @@ function autoExtract(){
   if(c){
     const matched = c.presets.find(p=> raw.includes(p.name));
     if(matched){
-      document.getElementById('toAddr').value = matched.address || matched.name;
-      if(matched.phone) document.getElementById('toPhone').value = matched.phone;
-    } else if(!document.getElementById('toAddr').value.trim()){
-      // nothing detected in the order text — fall back to this client's fixed
-      // destination (달렉스/두리무역 같이 도착지가 항상 같은 거래처) or map note (이글무역)
-      if(c.useMapInstead && c.mapNote){
-        document.getElementById('toAddr').value = c.mapNote;
-      } else if(c.defaultArrival){
-        document.getElementById('toAddr').value = c.defaultArrival;
+      toAddr = matched.address || matched.name; toAddrConfident = true;
+      if(matched.phone){ toPhone = matched.phone; toPhoneConfident = true; }
+    } else {
+      // no explicit destination in the text — a client with a *fixed* 도착지/
+      // 연락처 (달렉스/두리무역 같이 항상 같은 곳으로 가는 거래처, 또는 이글무역의
+      // 약도 안내) wins over the positional guess, since for these clients the
+      // one phone/address the text does mention is almost always the pickup side.
+      if(!toAddrConfident){
+        if(c.useMapInstead && c.mapNote) toAddr = c.mapNote;
+        else if(c.defaultArrival) toAddr = c.defaultArrival;
       }
+      if(!toPhoneConfident && c.defaultArrivalPhone) toPhone = c.defaultArrivalPhone;
     }
   }
+  document.getElementById('toAddr').value = toAddr;
+  document.getElementById('toPhone').value = toPhone;
 
   toast('자동 추출 완료 — 내용을 확인하고 필요하면 수정하세요');
 }
