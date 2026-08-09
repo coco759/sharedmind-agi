@@ -872,7 +872,24 @@ function autoExtract(){
     if(isPhoneLine) buildingAddr = false; // a phone on this line closes the location either way
   });
 
-  const fromAddr = explicitFrom || sections.fromAddr || addrLines[0] || '';
+  // safety net: no matter how a leading "차량명 " ended up glued onto an
+  // address (some real-world kakaotalk line-wraps have confused the parser
+  // above), strip it back off here before it reaches the visible fields
+  function stripLeakedVehiclePrefix(addr){
+    if(!addr) return addr;
+    let out = addr;
+    if(vehicleName){
+      const esc = vehicleName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      out = out.replace(new RegExp('^'+esc+'\\s+'), '');
+    }
+    for(const kw of VEHICLE_KEYWORDS){
+      const esc = kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      out = out.replace(new RegExp('^'+esc+'\\s+','i'), '');
+    }
+    return out.trim();
+  }
+
+  const fromAddr = stripLeakedVehiclePrefix(explicitFrom || sections.fromAddr || addrLines[0] || '');
   const fromPhone = sections.fromPhone || phones[0] || '';
 
   // toAddr/toPhone: track whether the value came from something that actually
@@ -881,9 +898,9 @@ function autoExtract(){
   // A client's fixed 고정 도착지/연락처 (예: 달렉스무역) should win over the guess —
   // for those clients the order text usually only mentions the pickup contact —
   // but must never overwrite an actually-named destination.
-  let toAddr = explicitTo || sections.toAddr || '';
+  let toAddr = stripLeakedVehiclePrefix(explicitTo || sections.toAddr || '');
   let toAddrConfident = !!toAddr;
-  if(!toAddr) toAddr = addrLines[1] || '';
+  if(!toAddr) toAddr = stripLeakedVehiclePrefix(addrLines[1] || '');
 
   let toPhone = sections.toPhone || '';
   let toPhoneConfident = !!toPhone;
