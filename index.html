@@ -712,6 +712,12 @@ const VEHICLE_KEYWORDS = ['소나타','아반떼','그랜저','싼타페','투�
   '니로','벤츠','BMW','아우디','폭스바겐','볼보','렉서스','도요타','캠리','혼다','닛산','아반떼hd',
   '아반떼HD','스타리아','올란도','다마스','라보'];
 
+// brand names that often precede a bare model name (예: "KIA K5") — grouped with
+// the model into one vehicleName so a mixed "차량정보+주소" line (real카톡 order
+// texts sometimes put both on one line) doesn't leak "KIA" into the address
+const BRAND_NAMES = ['기아','KIA','현대','HYUNDAI','쌍용','SSANGYONG','KG모빌리티','쉐보레',
+  'CHEVROLET','GM대우','르노삼성','르노','RENAULT','제네시스','GENESIS'];
+
 const ADDR_KEYWORDS = ['시','도','구','군','읍','면','동','로','길','번지','아파트','빌라','오피스텔',
   '상가','공단','타워','캐슬','빌딩','주차장','센터','호점','번길','단지'];
 
@@ -834,21 +840,35 @@ function autoExtract(){
     working = working.replace(/\(\s*\)/g,'').replace(/\/\s*$/,'').replace(/[\[\]]/g,'')
       .replace(/\s{2,}/g,' ').trim();
 
-    const lineIsAddrLike = ADDR_KEYWORDS.some(k=>working.includes(k));
-
+    // vehicle detection runs *before* the address check and physically removes
+    // the matched "브랜드(optional)+차종" text from `working` — real order texts
+    // sometimes put the vehicle info and the address on the very same line
+    // (e.g. "KIA K5   수원 권선구 권선로..."), and without this the vehicle text
+    // used to leak into whatever got treated as the address on that line
     if(!vehicleName){
-      const foundKw = VEHICLE_KEYWORDS.find(k=>line.toUpperCase().includes(k.toUpperCase()));
+      // prefer the *longest* matching keyword (e.g. "아반떼hd" over just "아반떼")
+      // so a shorter prefix match doesn't leave a stray suffix like "hd" behind
+      const foundKw = VEHICLE_KEYWORDS
+        .filter(k=>line.toUpperCase().includes(k.toUpperCase()))
+        .sort((a,b)=>b.length-a.length)[0];
       if(foundKw){
-        if(lineIsAddrLike){
-          // vehicle keyword appears inside what is otherwise an address line
-          // (e.g. "부산 강서구 쏘렌토r") — keep just the keyword, let the line stay an address
-          vehicleName = foundKw;
+        const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        const brandPart = BRAND_NAMES.map(esc).join('|');
+        const vehicleRe = new RegExp('(?:(?:'+brandPart+')\\s+)?'+esc(foundKw), 'i');
+        const m = working.match(vehicleRe);
+        if(m && m[0].trim()){
+          vehicleName = m[0].trim();
+          working = (working.slice(0, m.index) + working.slice(m.index + m[0].length));
         } else {
-          // whole remainder of this line is the vehicle description (e.g. "KIA K5")
-          vehicleName = working || foundKw;
+          vehicleName = foundKw;
         }
+        // clean up whatever whitespace/stray single-letter leftovers the
+        // removal left behind (e.g. "쏘렌토r" → leftover lone "r")
+        working = working.replace(/(^|\s)[a-zA-Z](?=\s|$)/g,' ').replace(/\s{2,}/g,' ').trim();
       }
     }
+
+    const lineIsAddrLike = ADDR_KEYWORDS.some(k=>working.includes(k));
 
     if(!working){ if(isPhoneLine) buildingAddr = false; return; }
     if(GREETING_STOP.includes(working)){ buildingAddr = false; return; }
