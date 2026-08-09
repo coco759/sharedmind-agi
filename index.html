@@ -493,6 +493,13 @@ function saveSettings(){
 let clients = loadClients();
 let settings = loadSettings();
 
+// tracks whatever value a 거래처's 고정 도착지/연락처 last auto-filled into
+// toAddr/toPhone, so a later client switch can tell "this is still what I
+// auto-filled, safe to replace" apart from "the dispatcher typed over it,
+// leave it alone" — see onClientChange()
+let lastAutoToAddr = '';
+let lastAutoToPhone = '';
+
 /* ---------------- client panel ---------------- */
 function renderClientPanel(){
   const list = document.getElementById('clientList');
@@ -651,16 +658,29 @@ function onClientChange(){
   renderPresetChips();
   const sel = document.getElementById('clientSelect');
   const c = clients.find(x=>x.id===sel.value);
-  const toPhoneEl = document.getElementById('toPhone');
-  if(c && !document.getElementById('toAddrFull').value.trim()){
-    if(c.useMapInstead && c.mapNote){
-      setAddr('to', c.mapNote);
-    } else if(c.defaultArrival){
-      setAddr('to', c.defaultArrival);
+  if(!c) return;
+
+  // a client's 고정 도착지/연락처 should win whenever the field is still empty
+  // OR still holds whatever a *previous* auto-fill put there (switching from
+  // another 고정 거래처, or from a guess autoExtract made before this client
+  // was picked) — but never overwrite something the dispatcher actually typed.
+  const toAddrFullEl = document.getElementById('toAddrFull');
+  const wantsAddr = (c.useMapInstead && c.mapNote) ? c.mapNote : (c.defaultArrival || '');
+  if(wantsAddr){
+    const current = toAddrFullEl.value.trim();
+    if(!current || current === lastAutoToAddr){
+      setAddr('to', wantsAddr);
+      lastAutoToAddr = wantsAddr;
     }
   }
-  if(c && !toPhoneEl.value.trim() && c.defaultArrivalPhone){
-    toPhoneEl.value = c.defaultArrivalPhone;
+
+  const toPhoneEl = document.getElementById('toPhone');
+  if(c.defaultArrivalPhone){
+    const current = toPhoneEl.value.trim();
+    if(!current || current === lastAutoToPhone){
+      toPhoneEl.value = c.defaultArrivalPhone;
+      lastAutoToPhone = c.defaultArrivalPhone;
+    }
   }
 }
 function renderPresetChips(){
@@ -914,6 +934,13 @@ function autoExtract(){
       if(!toPhoneConfident && c.defaultArrivalPhone) toPhone = c.defaultArrivalPhone;
     }
   }
+  // anything that ended up in toAddr/toPhone without being a *confident* match
+  // (no client picked yet, or the client has no fixed 도착지 to prefer) is just
+  // a positional guess — remember it as such so a client picked *afterward*
+  // (via onClientChange) knows it's still safe to replace with a fixed default
+  if(!toAddrConfident) lastAutoToAddr = toAddr; else lastAutoToAddr = '';
+  if(!toPhoneConfident) lastAutoToPhone = toPhone; else lastAutoToPhone = '';
+
   setAddr('to', toAddr);
   document.getElementById('toPhone').value = toPhone;
 
@@ -948,6 +975,8 @@ function resetAll(){
   document.getElementById('clientMsg').value = '';
   document.getElementById('driverMsg').value = '';
   document.getElementById('clientSelect').value = '';
+  lastAutoToAddr = '';
+  lastAutoToPhone = '';
   renderClientChips();
   renderPresetChips();
 }
