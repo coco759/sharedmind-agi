@@ -926,7 +926,11 @@ function autoExtract(){
 
   let toPhone = sections.toPhone || '';
   let toPhoneConfident = !!toPhone;
-  if(!toPhone) toPhone = phones[1] || phones[0] || '';
+  // only ever pull the *second* phone number found in the text — when the
+  // text has just one phone, it's almost always the pickup contact, and
+  // silently copying it into 도착 연락처 too just makes it look like the
+  // same person for both ends (confusing) when it's really "unknown, guessed"
+  if(!toPhone) toPhone = phones[1] || '';
 
   setAddr('from', fromAddr);
   document.getElementById('fromPhone').value = fromPhone;
