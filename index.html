@@ -772,7 +772,7 @@ function extractSections(raw){
     if(stripped==='도착' || stripped==='도착지'){ current='to'; continue; }
     if(!current) continue;
     if(isBoilerplateLine(stripped)){ current=null; continue; }
-    const phoneMatch = stripped.match(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/);
+    const phoneMatch = stripped.match(/01\d[-.\s]*\d{3,4}[-.\s]*\d{4}/);
     if(phoneMatch){
       const p = normalizePhone(phoneMatch[0]);
       if(current==='from' && !result.fromPhone) result.fromPhone = p;
@@ -792,7 +792,7 @@ function autoExtract(){
   if(!raw.trim()){ toast('붙여넣을 오더 내용이 없습니다'); return; }
 
   let text = raw;
-  const phones = [...text.matchAll(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/g)].map(m=>normalizePhone(m[0]));
+  const phones = [...text.matchAll(/01\d[-.\s]*\d{3,4}[-.\s]*\d{4}/g)].map(m=>normalizePhone(m[0]));
   const plates = [...text.matchAll(/\d{2,3}\s?[가-힣]\s?\d{4}/g)].map(m=>m[0].replace(/\s/g,''));
   const vins = [...text.matchAll(/\b[A-Z0-9]{17}\b/g)].map(m=>m[0]);
   const dates = [...text.matchAll(/\d{4}\s?년\s?\d{1,2}\s?월\s?\d{1,2}\s?일/g)].map(m=>m[0]);
@@ -827,11 +827,11 @@ function autoExtract(){
     // extractable content of their own — skip them entirely (handled by extractSections above)
     if(isBoilerplateLine(line) || isSectionMarkerLine(line)) return;
 
-    const isPhoneLine = /01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/.test(line);
+    const isPhoneLine = /01\d[-.\s]*\d{3,4}[-.\s]*\d{4}/.test(line);
     let working = line.replace(EMOJI_RE,'').trim();
 
     // strip known entities from the line to check what's left
-    working = working.replace(/01\d[-.\s]?\d{3,4}[-.\s]?\d{4}/g,'').trim();
+    working = working.replace(/01\d[-.\s]*\d{3,4}[-.\s]*\d{4}/g,'').trim();
     working = working.replace(/\b[A-Z0-9]{17}\b/g,'').trim();
     working = working.replace(/\d{4}\s?년\s?\d{1,2}\s?월\s?\d{1,2}\s?일/g,'').trim();
     working = working.replace(/\d{2,3}\s?[가-힣]\s?\d{4}/g,'').trim();
