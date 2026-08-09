@@ -405,7 +405,8 @@
       <button class="copy-btn" id="btnCopyDriverMsg">복사</button>
     </div>
     <textarea id="driverMsg"></textarea>
-    <button class="btn-ghost" id="btnSmsDriver" style="margin-top:10px;">📤 기사 번호로 문자 앱 열기</button>
+    <a href="javascript:void(0)" class="btn-ghost" id="btnSmsDriver"
+       style="margin-top:10px;display:block;text-align:center;text-decoration:none;box-sizing:border-box;">📤 기사 번호로 문자 앱 열기</a>
     <div class="hint">번호·내용이 채워진 문자 앱이 열려요 — 마지막 "전송"은 직접 눌러주세요 (보안상 자동전송은 불가).</div>
   </div>
 
@@ -1020,6 +1021,7 @@ function resetAll(){
   document.getElementById('clientSelect').value = '';
   lastAutoToAddr = '';
   lastAutoToPhone = '';
+  updateSmsLink();
   renderClientChips();
   renderPresetChips();
 }
@@ -1178,6 +1180,7 @@ function generateAll(){
   ];
   // collapse the intentionally-blank spacer lines down to single blank lines
   document.getElementById('driverMsg').value = driverLines.join('\n').replace(/\n{3,}/g,'\n\n');
+  updateSmsLink();
 
   toast('문자 생성 완료');
 }
@@ -1198,26 +1201,33 @@ function copyBox(id, btn){
 // browsers can never auto-send an SMS without the person tapping send
 // themselves (that's an OS-level anti-abuse rule, no way around it) — this
 // just removes the copy/switch-app/paste/type-number steps before that tap.
-function openSmsToDriver(){
+// keeps the "문자 앱 열기" link's href pointing at the current 기사 전화번호 +
+// 생성된 문자 at all times — a real <a href="sms:..."> that the browser
+// navigates natively is far more reliable across iOS/Android/standalone-
+// home-screen contexts than a JS-synthesized click or a location.href
+// assignment, both of which some browsers quietly refuse for custom URI
+// schemes depending on how/where the script runs.
+function updateSmsLink(){
+  const link = document.getElementById('btnSmsDriver');
+  if(!link) return;
   const phone = val('driverPhone');
   const text = document.getElementById('driverMsg').value;
-  if(!text.trim()){ toast('먼저 생성 버튼을 눌러주세요'); return; }
-  if(!phone){ toast('기사 전화번호를 먼저 입력하세요'); return; }
+  if(!phone || !text.trim()){
+    link.href = 'javascript:void(0)';
+    return;
+  }
   const digits = phone.replace(/[^\d+]/g,'');
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   const sep = isIOS ? '&' : '?';
-  const uri = `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
-  // an actual <a> click (target="_top" to escape an embedding iframe, e.g. a
-  // chat's inline preview) is handled more consistently across browsers than
-  // assigning window.location.href — some sandboxed previews block custom
-  // URI-scheme navigation from script but still allow a real anchor click
-  const a = document.createElement('a');
-  a.href = uri;
-  a.target = '_top';
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  link.href = `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
+}
+function handleSmsLinkClick(e){
+  const phone = val('driverPhone');
+  const text = document.getElementById('driverMsg').value;
+  if(!text.trim()){ e.preventDefault(); toast('먼저 생성 버튼을 눌러주세요'); return; }
+  if(!phone){ e.preventDefault(); toast('기사 전화번호를 먼저 입력하세요'); return; }
+  // href is already current (updateSmsLink runs on every relevant change) —
+  // let the browser's native anchor navigation take it from here
 }
 function copyNotionRow(){
   const raw = val('rawOrder');
@@ -1294,7 +1304,8 @@ safeInit('핵심 버튼(자동추출/생성/복사/초기화)', ()=>{
   document.getElementById('btnGenerate').addEventListener('click', generateAll);
   document.getElementById('btnCopyClientMsg').addEventListener('click', function(){ copyBox('clientMsg', this); });
   document.getElementById('btnCopyDriverMsg').addEventListener('click', function(){ copyBox('driverMsg', this); });
-  document.getElementById('btnSmsDriver').addEventListener('click', openSmsToDriver);
+  document.getElementById('btnSmsDriver').addEventListener('click', handleSmsLinkClick);
+  document.getElementById('driverPhone').addEventListener('input', updateSmsLink);
   document.getElementById('btnCopyNotion').addEventListener('click', copyNotionRow);
   document.getElementById('orderDate').valueAsDate = new Date();
 
