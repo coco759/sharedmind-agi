@@ -1202,7 +1202,18 @@ function openSmsToDriver(){
   const digits = phone.replace(/[^\d+]/g,'');
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   const sep = isIOS ? '&' : '?';
-  window.location.href = `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
+  const uri = `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
+  // an actual <a> click (target="_top" to escape an embedding iframe, e.g. a
+  // chat's inline preview) is handled more consistently across browsers than
+  // assigning window.location.href — some sandboxed previews block custom
+  // URI-scheme navigation from script but still allow a real anchor click
+  const a = document.createElement('a');
+  a.href = uri;
+  a.target = '_top';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 function copyNotionRow(){
   const raw = val('rawOrder');
