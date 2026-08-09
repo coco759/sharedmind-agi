@@ -259,6 +259,7 @@
   }
   .copy-btn.copied{border-color:var(--ok);color:var(--ok);}
   .hint{font-size:11.5px;color:var(--sub);margin-top:8px;line-height:1.5;}
+  .addr-detail{font-size:11px;color:var(--sub);margin-top:4px;line-height:1.4;min-height:1px;}
   .toast{
     position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
     background:var(--input);border:1px solid var(--border);
@@ -331,16 +332,20 @@
 
   <div class="grid2">
     <div class="field">
-      <label>출발지</label>
+      <label>출발지 (지명 축약 — 기사문자는 상세주소 유지)</label>
       <input id="fromAddr" placeholder="출발 주소" />
+      <div class="addr-detail" id="fromAddrDetail"></div>
+      <input type="hidden" id="fromAddrFull" />
     </div>
     <div class="field">
       <label>출발 연락처</label>
       <input id="fromPhone" placeholder="010-0000-0000" />
     </div>
     <div class="field">
-      <label>도착지</label>
+      <label>도착지 (지명 축약 — 기사문자는 상세주소 유지)</label>
       <input id="toAddr" placeholder="도착 주소" />
+      <div class="addr-detail" id="toAddrDetail"></div>
+      <input type="hidden" id="toAddrFull" />
     </div>
     <div class="field">
       <label>도착 연락처</label>
@@ -646,13 +651,12 @@ function onClientChange(){
   renderPresetChips();
   const sel = document.getElementById('clientSelect');
   const c = clients.find(x=>x.id===sel.value);
-  const toAddrEl = document.getElementById('toAddr');
   const toPhoneEl = document.getElementById('toPhone');
-  if(c && !toAddrEl.value.trim()){
+  if(c && !document.getElementById('toAddrFull').value.trim()){
     if(c.useMapInstead && c.mapNote){
-      toAddrEl.value = c.mapNote;
+      setAddr('to', c.mapNote);
     } else if(c.defaultArrival){
-      toAddrEl.value = c.defaultArrival;
+      setAddr('to', c.defaultArrival);
     }
   }
   if(c && !toPhoneEl.value.trim() && c.defaultArrivalPhone){
@@ -671,7 +675,7 @@ function renderPresetChips(){
     chip.className = 'chip';
     chip.textContent = '📍 '+p.name;
     chip.onclick = ()=>{
-      document.getElementById('toAddr').value = p.address || p.name;
+      setAddr('to', p.address || p.name);
       if(p.phone) document.getElementById('toPhone').value = p.phone;
       [...wrap.children].forEach(ch=>ch.classList.remove('active'));
       chip.classList.add('active');
@@ -865,7 +869,7 @@ function autoExtract(){
   let toPhoneConfident = !!toPhone;
   if(!toPhone) toPhone = phones[1] || phones[0] || '';
 
-  document.getElementById('fromAddr').value = fromAddr;
+  setAddr('from', fromAddr);
   document.getElementById('fromPhone').value = fromPhone;
   document.getElementById('carName').value = vehicleName || '';
   document.getElementById('carNum').value = plates[0] || '';
@@ -910,7 +914,7 @@ function autoExtract(){
       if(!toPhoneConfident && c.defaultArrivalPhone) toPhone = c.defaultArrivalPhone;
     }
   }
-  document.getElementById('toAddr').value = toAddr;
+  setAddr('to', toAddr);
   document.getElementById('toPhone').value = toPhone;
 
   toast('자동 추출 완료 — 내용을 확인하고 필요하면 수정하세요');
@@ -934,10 +938,12 @@ function koDateToInput(koDate){
 }
 
 function resetAll(){
-  ['rawOrder','fromAddr','fromPhone','toAddr','toPhone','carName','carNum',
-   'feeMain','feeFuel','driverPhone','requestNote'].forEach(id=>{
+  ['rawOrder','fromAddr','fromAddrFull','fromPhone','toAddr','toAddrFull','toPhone',
+   'carName','carNum','feeMain','feeFuel','driverPhone','requestNote'].forEach(id=>{
     document.getElementById(id).value = '';
   });
+  document.getElementById('fromAddrDetail').textContent = '';
+  document.getElementById('toAddrDetail').textContent = '';
   document.getElementById('orderDate').value = '';
   document.getElementById('clientMsg').value = '';
   document.getElementById('driverMsg').value = '';
@@ -955,29 +961,90 @@ function fmtMoney(v){
   return n.toLocaleString('ko-KR');
 }
 
-// 서울 → 구 단위, 경기도 → 도시명, 그 외 광역시/도 → 도시명만
+// 서울 → 구 단위, 경기도 → 도시명, 그 외 광역시/도 → 도시명만, 그 외엔 첫 단어를
+// 지역으로 취급 (기사들이 "송도", "검단"처럼 구어체 지명을 그대로 쓰는 경우도 있어서)
 // (예: "경기도 부천시 450-1 현대아파트..." → "부천", "서울 강남구 테헤란로..." → "강남구")
 const METRO_CITIES = ['부산','대구','인천','광주','대전','울산','세종'];
-function regionOf(address){
-  if(!address) return '';
-  let a = address.trim().replace(/^서울특별시\s*/,'서울 ').replace(/^서울시\s*/,'서울 ');
+function splitRegion(address){
+  let a = (address||'').trim().replace(/^서울특별시\s*/,'서울 ').replace(/^서울시\s*/,'서울 ');
   if(/^서울/.test(a)){
-    const m = a.match(/서울\S*?\s*([가-힣]+구)/);
-    return m ? m[1] : '서울';
+    const m = a.match(/^서울\s*([가-힣]+구)\s*(.*)$/);
+    if(m) return {region:m[1], rest:m[2]};
+    return {region:'서울', rest:a.replace(/^서울\s*/,'')};
   }
   if(/^경기/.test(a)){
-    const m = a.match(/경기\S*?\s*([가-힣]+?)(시|군)/);
-    return m ? m[1] : '경기';
+    const m = a.match(/^경기\S*?\s*([가-힣]+?)(시|군)\s*(.*)$/);
+    if(m) return {region:m[1], rest:m[3]};
+    return {region:'경기', rest:a.replace(/^경기\S*?\s*/,'')};
   }
   const metro = METRO_CITIES.find(city=>a.startsWith(city));
-  if(metro) return metro;
-  // fallback: first token, with the usual province/city suffixes stripped
-  return (a.split(/\s+/)[0] || a).replace(/(광역시|특별자치시|특별자치도|특별시)$/,'').replace(/도$/,'');
+  if(metro){
+    let rest = a.slice(metro.length).replace(/^(광역시|특별자치시)?\s*/,'');
+    rest = rest.replace(/^[가-힣]+(시|군|구)\s*/,'');
+    return {region: metro, rest};
+  }
+  // fallback: first token as a loose "region" (dispatcher shorthand like "송도", "검단").
+  // Only strip an actual province-name suffix (강원도/충청남도/제주도/...) — a bare
+  // trailing "도" is otherwise part of the name itself (e.g. "송도", "여의도").
+  const tokens = a.split(/\s+/).filter(Boolean);
+  const region = (tokens[0]||'')
+    .replace(/(광역시|특별자치시|특별자치도|특별시)$/,'')
+    .replace(/^(강원|충청북|충청남|전라북|전라남|경상북|경상남|제주)도$/,'$1');
+  return {region, rest: tokens.slice(1).join(' ')};
+}
+function regionOf(address){
+  if(!address) return '';
+  return splitRegion(address).region;
+}
+
+// simplifies a full address down to "지역 + 랜드마크/도로명" for display in the
+// 출발지/도착지 필드 and the 거래처 확인 문자 — the full address stays intact in
+// the hidden *Full field for 기사문자, which needs the precise address to navigate by
+const LANDMARK_SUFFIXES = ['아파트','빌라','오피스텔','타워','캐슬','빌딩','프라자','상가',
+  '센터','단지','마을','하이츠','팰리스','파크','더샵','스카이','밸리','시티','오토모티브','모터스'];
+const ADDR_DETAIL_STRIP_RE = /\s*(지하\s?\d*층?|지상\s?\d*층?|\d+층|주차장|앞|뒤|정문|후문|단지\s?내|엘리베이터|입구).*$/;
+function placeNameOf(address){
+  if(!address) return '';
+  const {region, rest} = splitRegion(address);
+  const tokens = rest.split(/\s+/).filter(Boolean);
+
+  const landmark = tokens.find(t=>LANDMARK_SUFFIXES.some(suf=>t.endsWith(suf)));
+  if(landmark) return [region, landmark.replace(/[.,]+$/,'')].filter(Boolean).join(' ').trim();
+
+  let trimmed = rest.replace(ADDR_DETAIL_STRIP_RE,'').trim().replace(/^\d+[-\d]*\s*/,'').trim();
+  const dongMatch = trimmed.match(/^(.*?[가-힣])\s*\d+동/);
+  if(dongMatch) return [region, dongMatch[1]].filter(Boolean).join(' ').trim();
+
+  const roadToken = tokens.find(t=>/[가-힣]+(로|길)\d*/.test(t));
+  if(roadToken) return [region, roadToken.replace(/[.,]+$/,'')].filter(Boolean).join(' ').trim();
+
+  return region || address;
+}
+
+// sets both the visible (지명 축약) and hidden (전체주소, 기사문자용) address fields
+function setAddr(prefix, fullAddr){
+  const full = (fullAddr||'').trim();
+  document.getElementById(prefix+'AddrFull').value = full;
+  document.getElementById(prefix+'Addr').value = full ? (placeNameOf(full) || full) : '';
+  renderAddrDetail(prefix);
+}
+function renderAddrDetail(prefix){
+  const full = document.getElementById(prefix+'AddrFull').value.trim();
+  const shown = document.getElementById(prefix+'Addr').value.trim();
+  const detailEl = document.getElementById(prefix+'AddrDetail');
+  detailEl.textContent = (full && full !== shown) ? ('상세: '+full) : '';
 }
 
 function generateAll(){
+  // display (지명 축약) values — used for the client confirmation message
   const from = val('fromAddr'), fromPh = val('fromPhone');
   const to = val('toAddr'), toPh = val('toPhone');
+  // full/detailed addresses — always used for the driver message so the
+  // driver still gets a navigable address, even though the visible fields
+  // above are shortened to a place name; falls back to the display value
+  // if a full address was never captured (e.g. hand-typed without auto-extract)
+  const fromFull = val('fromAddrFull') || from;
+  const toFull = val('toAddrFull') || to;
   const car = val('carName'), carNum = val('carNum');
   const fee = val('feeMain'), fuel = val('feeFuel');
   const date = val('orderDate');
@@ -989,7 +1056,7 @@ function generateAll(){
   const dateStr = date ? formatDateKo(date) : '';
 
   // 1) message to client (의뢰인 확인 문자) — region(출발지 기준) + 차량 + 기사연락처 + 금액만
-  const region = regionOf(from);
+  const region = regionOf(fromFull);
   const clientLines = [
     [region, carNum ? `${car}/(${carNum})` : car].filter(Boolean).join(' '),
     driverPh,
@@ -997,17 +1064,18 @@ function generateAll(){
   ].filter(Boolean);
   document.getElementById('clientMsg').value = clientLines.join('\n');
 
-  // 2) message to driver (기사 안내 문자) — company-standard 배차 안내 양식
+  // 2) message to driver (기사 안내 문자) — company-standard 배차 안내 양식.
+  // Always the full/detailed address here, never the shortened place name.
   const client = clients.find(x=>x.id===sel.value);
   const bizNumber = client && client.bizNumber ? client.bizNumber : '(사업자번호 미등록 — 거래처 설정에서 입력)';
   const receiptPhone = settings.fuelReceiptPhone || '(주유영수증 받을 번호 미설정)';
 
   let arrivalBlock;
   if(client && client.useMapInstead){
-    const place = client.mapNote || to || '도착지';
+    const place = client.mapNote || toFull || '도착지';
     arrivalBlock = `${place} (도착지 약도는 사장님이 별도로 보내드릴게요)`;
   } else {
-    arrivalBlock = to || '-';
+    arrivalBlock = toFull || '-';
   }
 
   const driverLines = [
@@ -1016,7 +1084,7 @@ function generateAll(){
     fee ? `배차금액: ${fmtMoney(fee)}원` : '',
     '',
     '🚗 출발',
-    `주소 : ${from || '-'}`,
+    `주소 : ${fromFull || '-'}`,
     '',
     `☎ ${fromPh || '-'}`,
     '',
@@ -1055,7 +1123,8 @@ function copyBox(id, btn){
 }
 function copyNotionRow(){
   const raw = val('rawOrder');
-  const from = val('fromAddr'), to = val('toAddr');
+  const from = val('fromAddrFull') || val('fromAddr');
+  const to = val('toAddrFull') || val('toAddr');
   const fee = val('feeMain'), fuel = val('feeFuel');
   const date = val('orderDate') ? formatDateKo(val('orderDate')) : '';
   const car = [val('carName'), val('carNum')].filter(Boolean).join(' ');
@@ -1129,6 +1198,18 @@ safeInit('핵심 버튼(자동추출/생성/복사/초기화)', ()=>{
   document.getElementById('btnCopyDriverMsg').addEventListener('click', function(){ copyBox('driverMsg', this); });
   document.getElementById('btnCopyNotion').addEventListener('click', copyNotionRow);
   document.getElementById('orderDate').valueAsDate = new Date();
+
+  // if the dispatcher hand-edits the shortened 출발지/도착지 field directly,
+  // keep the hidden *Full field (기사문자 source) in sync with it — otherwise
+  // a manual correction here wouldn't show up in the driver's message.
+  // (programmatic .value assignments from setAddr() don't fire 'input', so
+  // this only reacts to actual typing.)
+  ['from','to'].forEach(prefix=>{
+    document.getElementById(prefix+'Addr').addEventListener('input', function(){
+      document.getElementById(prefix+'AddrFull').value = this.value;
+      renderAddrDetail(prefix);
+    });
+  });
 });
 
 // 2) 거래처 선택 + 설정 패널
