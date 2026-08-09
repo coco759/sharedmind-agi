@@ -405,6 +405,8 @@
       <button class="copy-btn" id="btnCopyDriverMsg">복사</button>
     </div>
     <textarea id="driverMsg"></textarea>
+    <button class="btn-ghost" id="btnSmsDriver" style="margin-top:10px;">📤 기사 번호로 문자 앱 열기</button>
+    <div class="hint">번호·내용이 채워진 문자 앱이 열려요 — 마지막 "전송"은 직접 눌러주세요 (보안상 자동전송은 불가).</div>
   </div>
 
   <button class="btn-ghost" id="btnCopyNotion">노션 붙여넣기용 복사</button>
@@ -1187,6 +1189,21 @@ function copyBox(id, btn){
   if(!el.value.trim()){ toast('먼저 생성 버튼을 눌러주세요'); return; }
   copyText(el.value, btn);
 }
+
+// opens the phone's 문자 app with the driver's number + message pre-filled.
+// browsers can never auto-send an SMS without the person tapping send
+// themselves (that's an OS-level anti-abuse rule, no way around it) — this
+// just removes the copy/switch-app/paste/type-number steps before that tap.
+function openSmsToDriver(){
+  const phone = val('driverPhone');
+  const text = document.getElementById('driverMsg').value;
+  if(!text.trim()){ toast('먼저 생성 버튼을 눌러주세요'); return; }
+  if(!phone){ toast('기사 전화번호를 먼저 입력하세요'); return; }
+  const digits = phone.replace(/[^\d+]/g,'');
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const sep = isIOS ? '&' : '?';
+  window.location.href = `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
+}
 function copyNotionRow(){
   const raw = val('rawOrder');
   const from = val('fromAddrFull') || val('fromAddr');
@@ -1262,6 +1279,7 @@ safeInit('핵심 버튼(자동추출/생성/복사/초기화)', ()=>{
   document.getElementById('btnGenerate').addEventListener('click', generateAll);
   document.getElementById('btnCopyClientMsg').addEventListener('click', function(){ copyBox('clientMsg', this); });
   document.getElementById('btnCopyDriverMsg').addEventListener('click', function(){ copyBox('driverMsg', this); });
+  document.getElementById('btnSmsDriver').addEventListener('click', openSmsToDriver);
   document.getElementById('btnCopyNotion').addEventListener('click', copyNotionRow);
   document.getElementById('orderDate').valueAsDate = new Date();
 
