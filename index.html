@@ -443,6 +443,7 @@ const KNOWN_DEFAULTS = {
   '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', defaultArrivalPhone: '010-6231-4179', bizNumber: '6118603456' },
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
+  'Ssen 무역':    { defaultArrival: '송도유원지' },
 };
 
 function blankClient(name){
@@ -476,11 +477,15 @@ function loadClients(){
     }
   });
 
-  // make sure 이글무역 exists even if it wasn't in an older save
-  if(!list.some(c=>c.name==='이글무역')){
-    list.push(blankClient('이글무역'));
-    Object.assign(list[list.length-1], KNOWN_DEFAULTS['이글무역']);
-  }
+  // make sure every known example client exists even in an older save that
+  // predates it (e.g. a new client added to KNOWN_DEFAULTS later on)
+  Object.keys(KNOWN_DEFAULTS).forEach(name=>{
+    if(!list.some(c=>c.name===name)){
+      const c = blankClient(name);
+      Object.assign(c, KNOWN_DEFAULTS[name]);
+      list.push(c);
+    }
+  });
 
   return list;
 }
