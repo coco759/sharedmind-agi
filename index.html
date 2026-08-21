@@ -739,7 +739,8 @@ const VEHICLE_KEYWORDS = ['소나타','아반떼','그랜저','싼타페','투�
   '레이','모닝','캐스퍼','티볼리','코란도','렉스턴','QM6','QM3','SM6','SM5','말리부','트랙스',
   '트레일블레이저','이쿼녹스','로체','제네시스','G70','G80','G90','GV70','GV80','아이오닉','EV6',
   '니로','벤츠','BMW','아우디','폭스바겐','볼보','렉서스','도요타','캠리','혼다','닛산','아반떼hd',
-  '아반떼HD','스타리아','올란도','다마스','라보'];
+  '아반떼HD','스타리아','올란도','다마스','라보',
+  '크루즈','스파크','아베오','트래버스','콜로라도','임팔라','더뉴','올뉴','티코','프라이드','엑센트','베르나'];
 
 // brand names that often precede a bare model name (예: "KIA K5") — grouped with
 // the model into one vehicleName so a mixed "차량정보+주소" line (real카톡 order
@@ -749,6 +750,12 @@ const BRAND_NAMES = ['기아','KIA','현대','HYUNDAI','쌍용','SSANGYONG','KG�
 
 const ADDR_KEYWORDS = ['시','도','구','군','읍','면','동','로','길','번지','아파트','빌라','오피스텔',
   '상가','공단','타워','캐슬','빌딩','주차장','센터','호점','번길','단지'];
+
+// business/place names that stand in for a full street address in real order
+// text (e.g. "대전 신탄진 중고차 매매상사"처럼 상호명만 출발지로 던져주는 경우) — these
+// don't contain any ADDR_KEYWORDS token, so treat a line *ending* with one of
+// these as an address line too, regardless of length
+const PLACE_SUFFIX_HINTS = ['상사','매매단지','공업사','정비소','카센터','모터스','전시장','대리점'];
 
 const GREETING_STOP = ['안녕하세요','감사합니다','네','넵','알겠습니다','좋은 하루요',
   '좋은 하루 보내세요','네 확인이요','확인이요','수고하세요','넵감사합니다'];
@@ -814,11 +821,47 @@ function extractSections(raw){
   return result;
 }
 
+// matches a registered 거래처 name inside pasted order text even when spacing/
+// case differ from how it's stored (e.g. client "Ssen 무역" vs text "ssen무역")
+function clientNameRegex(name){
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+    .map(p=>p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  if(!parts.length) return null;
+  return new RegExp(parts.join('\\s*'), 'i');
+}
+function detectClientInText(raw){
+  for(const c of clients){
+    const re = clientNameRegex(c.name);
+    if(!re) continue;
+    const m = raw.match(re);
+    if(m) return {client: c, match: m[0], index: m.index};
+  }
+  return null;
+}
+
 function autoExtract(){
   const raw = document.getElementById('rawOrder').value;
   if(!raw.trim()){ toast('붙여넣을 오더 내용이 없습니다'); return; }
 
-  let text = raw;
+  // if the text mentions a registered 거래처 by name (often jammed right up
+  // against a place name with no space, e.g. "송도유원지ssen무역"), pick that
+  // client automatically (unless one is already picked) and strip the matched
+  // text out before anything else parses the order — otherwise it pollutes
+  // whatever address/nickname token it was stuck to
+  let cleanedRaw = raw;
+  const clientHit = detectClientInText(raw);
+  if(clientHit){
+    cleanedRaw = raw.slice(0, clientHit.index) + ' ' + raw.slice(clientHit.index + clientHit.match.length);
+    const clientSel = document.getElementById('clientSelect');
+    if(!clientSel.value){
+      clientSel.value = clientHit.client.id;
+      clientSel.dispatchEvent(new Event('change'));
+      renderClientChips();
+      toast(`거래처 "${clientHit.client.name}" 자동 선택됨`);
+    }
+  }
+
+  let text = cleanedRaw;
   const phones = [...text.matchAll(/01\d[-.\s]*\d{3,4}[-.\s]*\d{4}/g)].map(m=>normalizePhone(m[0]));
   const plates = [...text.matchAll(/\d{2,3}\s?[가-힣]\s?\d{4}/g)].map(m=>m[0].replace(/\s/g,''));
   const vins = [...text.matchAll(/\b[A-Z0-9]{17}\b/g)].map(m=>m[0]);
@@ -829,7 +872,7 @@ function autoExtract(){
   const explicitTo = firstMatch(text, EXPLICIT_TO_RE);
 
   // multi-line "🚗 출발 / 주소 : ... / ☎ ..." style section headers — next priority
-  const sections = extractSections(raw);
+  const sections = extractSections(cleanedRaw);
 
   // prices: tag ones near "주유" as fuel, others as main fee
   const fuelFee = firstMatch(text, /주유\D{0,6}?(\d[\d,]*)\s?만?\s?원?/);
@@ -838,7 +881,7 @@ function autoExtract(){
     .filter(Boolean);
 
   let vehicleName = '';
-  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const lines = cleanedRaw.split('\n').map(l=>l.trim()).filter(Boolean);
   const addrLines = [];
   const noteLines = [];
   // real KakaoTalk order text often splits one location across several lines —
@@ -883,7 +926,10 @@ function autoExtract(){
       if(foundKw){
         const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
         const brandPart = BRAND_NAMES.map(esc).join('|');
-        const vehicleRe = new RegExp('(?:(?:'+brandPart+')\\s+)?'+esc(foundKw), 'i');
+        // also absorb a leading 2-digit 연식 prefix directly on the model name
+        // (e.g. "17크루즈" = 2017년식 크루즈) so it doesn't get left behind as a
+        // stray number once the model name itself is pulled out
+        const vehicleRe = new RegExp('(?:(?:'+brandPart+')\\s+)?(?:\\d{2}\\s*)?'+esc(foundKw), 'i');
         const m = working.match(vehicleRe);
         if(m && m[0].trim()){
           vehicleName = m[0].trim();
@@ -897,7 +943,8 @@ function autoExtract(){
       }
     }
 
-    const lineIsAddrLike = ADDR_KEYWORDS.some(k=>working.includes(k));
+    const lineIsAddrLike = ADDR_KEYWORDS.some(k=>working.includes(k))
+      || PLACE_SUFFIX_HINTS.some(suf=>working.endsWith(suf));
 
     if(!working){ if(isPhoneLine) buildingAddr = false; return; }
     if(GREETING_STOP.includes(working)){ buildingAddr = false; return; }
@@ -1118,6 +1165,12 @@ function placeNameOf(address){
 
   const landmark = tokens.find(t=>LANDMARK_SUFFIXES.some(suf=>t.endsWith(suf)));
   if(landmark) return [region, landmark.replace(/[.,]+$/,'')].filter(Boolean).join(' ').trim();
+
+  // 중고차 매매상사/카센터/정비소 같은 상호명은 보통 여러 단어라 한 단어만 남기면
+  // 어느 업체인지 알아볼 수가 없다 — 지명 축약 없이 상호명 전체를 그대로 유지
+  if(PLACE_SUFFIX_HINTS.some(suf=>rest.endsWith(suf))){
+    return [region, rest].filter(Boolean).join(' ').trim();
+  }
 
   let trimmed = rest.replace(ADDR_DETAIL_STRIP_RE,'').trim().replace(/^\d+[-\d]*\s*/,'').trim();
   const dongMatch = trimmed.match(/^(.*?[가-힣])\s*\d+동/);
