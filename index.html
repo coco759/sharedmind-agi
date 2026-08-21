@@ -388,7 +388,7 @@
     </div>
     <div class="field">
       <label>기사 전화번호</label>
-      <input id="driverPhone" placeholder="010-0000-0000" />
+      <input id="driverPhone" placeholder="010-0000-0000" value="010" />
     </div>
   </div>
 
@@ -443,11 +443,12 @@ const KNOWN_DEFAULTS = {
   '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', defaultArrivalPhone: '010-6231-4179', bizNumber: '6118603456' },
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
-  'Ssen 무역':    { defaultArrival: '송도유원지' },
+  'Ssen 무역':    { defaultArrival: '송도유원지', fuelCallDestination: true },
 };
 
 function blankClient(name){
-  return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', defaultArrivalPhone:'', useMapInstead:false, mapNote:''};
+  return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', defaultArrivalPhone:'',
+    useMapInstead:false, mapNote:'', fuelCallDestination:false};
 }
 
 function loadClients(){
@@ -469,6 +470,7 @@ function loadClients(){
     if(c.defaultArrivalPhone === undefined) c.defaultArrivalPhone = '';
     if(c.useMapInstead === undefined) c.useMapInstead = false;
     if(c.mapNote === undefined) c.mapNote = '';
+    if(c.fuelCallDestination === undefined) c.fuelCallDestination = false;
     const known = KNOWN_DEFAULTS[c.name];
     if(known){
       Object.keys(known).forEach(k=>{
@@ -546,6 +548,15 @@ function renderClientPanel(){
             data-action="update-field" data-id="${c.id}" data-field="useMapInstead"
             style="width:auto;vertical-align:middle;margin-right:6px;" />
           도착지는 약도로 별도 전달 (문자에 주소 대신 안내 문구 표시)
+        </label>
+      </div>
+
+      <div class="field" style="margin-bottom:4px;">
+        <label>
+          <input type="checkbox" ${c.fuelCallDestination?'checked':''}
+            data-action="update-field" data-id="${c.id}" data-field="fuelCallDestination"
+            style="width:auto;vertical-align:middle;margin-right:6px;" />
+          주유 필요시 사업자번호 대신 도착지 연락처로 전화 (계기판 사진 보여주고 주유)
         </label>
       </div>
 
@@ -1025,9 +1036,12 @@ function koDateToInput(koDate){
 
 function resetAll(){
   ['rawOrder','fromAddr','fromAddrFull','fromPhone','toAddr','toAddrFull','toPhone',
-   'carName','carNum','feeMain','feeFuel','driverPhone','requestNote'].forEach(id=>{
+   'carName','carNum','feeMain','feeFuel','requestNote'].forEach(id=>{
     document.getElementById(id).value = '';
   });
+  // 010은 모든 번호에 공통이니 기사님 전화번호 칸은 비우지 않고 "010"만 남겨서
+  // 나머지 8자리만 이어서 입력하면 되게 함
+  document.getElementById('driverPhone').value = '010';
   document.getElementById('fromAddrDetail').textContent = '';
   document.getElementById('toAddrDetail').textContent = '';
   document.getElementById('orderDate').value = '';
@@ -1167,6 +1181,17 @@ function generateAll(){
     arrivalBlock = toFull || '-';
   }
 
+  // 주유 안내: 대부분 거래처는 정해진 번호로 영수증 보내는 방식이지만, 일부
+  // 거래처(예: Ssen 무역)는 대신 도착지 연락처에 직접 전화해서 계기판 사진
+  // 보여주고 그 자리에서 주유 승인을 받는 방식을 씀 — 사업자번호/영수증 절차 없음
+  const fuelLines = (client && client.fuelCallDestination)
+    ? [`4. 주유 필요시: 도착지 연락처(${toPh || '-'})로 전화해서 계기판 사진 보여드리고 주유 진행`]
+    : [
+        `4. 주유 영수증: [주유 영수증 + 차량번호]를 ${receiptPhone}으로 전송. 주유 필요시 계기판 사진 전송 후 주유 안내 받고 주유`,
+        `     사업자번호: ${bizNumber} (지출증빙)`,
+        '     ※ 위 사업자번호로 발행되지 않은 영수증은 주유비 지급 불가',
+      ];
+
   const driverLines = [
     '[배차 안내]',
     `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
@@ -1188,9 +1213,7 @@ function generateAll(){
     '1. 배차 즉시: 도착지 고객에게 연락 (배차 완료 안내)',
     '2. 운행 전/후: 차량 사진 & 계기판 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
     '3. 통행료: 기사님 부담 (하이패스 미납, 무단통과 시 정산 불가 및 배차 제한)',
-    `4. 주유 영수증: [주유 영수증 + 차량번호]를 ${receiptPhone}으로 전송. 주유 필요시 계기판 사진 전송 후 주유 안내 받고 주유`,
-    `     사업자번호: ${bizNumber} (지출증빙)`,
-    '     ※ 위 사업자번호로 발행되지 않은 영수증은 주유비 지급 불가',
+    ...fuelLines,
     '※ 운행 전 출발지와 도착지를 꼭 다시 확인해 주세요. 안전운전 하세요!'
   ];
   // collapse the intentionally-blank spacer lines down to single blank lines
