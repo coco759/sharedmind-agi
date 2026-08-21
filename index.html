@@ -349,7 +349,7 @@
     </div>
     <div class="field">
       <label>출발 연락처</label>
-      <input id="fromPhone" placeholder="010-0000-0000" />
+      <input id="fromPhone" placeholder="010-0000-0000" value="010" />
     </div>
     <div class="field">
       <label>도착지 (지명 축약 — 기사문자는 상세주소 유지)</label>
@@ -359,7 +359,7 @@
     </div>
     <div class="field">
       <label>도착 연락처</label>
-      <input id="toPhone" placeholder="010-0000-0000" />
+      <input id="toPhone" placeholder="010-0000-0000" value="010" />
     </div>
   </div>
 
@@ -706,7 +706,7 @@ function onClientChange(){
   const toPhoneEl = document.getElementById('toPhone');
   if(c.defaultArrivalPhone){
     const current = toPhoneEl.value.trim();
-    if(!current || current === lastAutoToPhone){
+    if(isBlankPhone(current) || current === lastAutoToPhone){
       toPhoneEl.value = c.defaultArrivalPhone;
       lastAutoToPhone = c.defaultArrivalPhone;
     }
@@ -960,7 +960,7 @@ function autoExtract(){
   if(!toPhone) toPhone = phones[1] || '';
 
   setAddr('from', fromAddr);
-  document.getElementById('fromPhone').value = fromPhone;
+  document.getElementById('fromPhone').value = fromPhone || '010';
   document.getElementById('carName').value = vehicleName || '';
   document.getElementById('carNum').value = plates[0] || '';
 
@@ -1012,7 +1012,7 @@ function autoExtract(){
   if(!toPhoneConfident) lastAutoToPhone = toPhone; else lastAutoToPhone = '';
 
   setAddr('to', toAddr);
-  document.getElementById('toPhone').value = toPhone;
+  document.getElementById('toPhone').value = toPhone || '010';
 
   toast('자동 추출 완료 — 내용을 확인하고 필요하면 수정하세요');
 }
@@ -1035,13 +1035,13 @@ function koDateToInput(koDate){
 }
 
 function resetAll(){
-  ['rawOrder','fromAddr','fromAddrFull','fromPhone','toAddr','toAddrFull','toPhone',
+  ['rawOrder','fromAddr','fromAddrFull','toAddr','toAddrFull',
    'carName','carNum','feeMain','feeFuel','requestNote'].forEach(id=>{
     document.getElementById(id).value = '';
   });
-  // 010은 모든 번호에 공통이니 기사님 전화번호 칸은 비우지 않고 "010"만 남겨서
+  // 010은 모든 번호에 공통이니 전화번호 칸들은 비우지 않고 "010"만 남겨서
   // 나머지 8자리만 이어서 입력하면 되게 함
-  document.getElementById('driverPhone').value = '010';
+  ['fromPhone','toPhone','driverPhone'].forEach(id=>{ document.getElementById(id).value = '010'; });
   document.getElementById('fromAddrDetail').textContent = '';
   document.getElementById('toAddrDetail').textContent = '';
   document.getElementById('orderDate').value = '';
@@ -1057,6 +1057,11 @@ function resetAll(){
 
 /* ---------------- generation ---------------- */
 function val(id){ return document.getElementById(id).value.trim(); }
+// phone fields default to "010" so only the last 8 digits need typing — for
+// every "has this field actually been filled in" check, treat a bare "010"
+// (nothing typed after it yet) the same as truly empty
+function isBlankPhone(v){ return !v || /^010[-\s]*$/.test(v.trim()); }
+function valPhone(id){ const v = val(id); return isBlankPhone(v) ? '' : v; }
 function fmtMoney(v){
   if(!v) return '';
   const n = parseInt(v.replace(/[^\d]/g,''),10);
@@ -1139,9 +1144,11 @@ function renderAddrDetail(prefix){
 }
 
 function generateAll(){
-  // display (지명 축약) values — used for the client confirmation message
-  const from = val('fromAddr'), fromPh = val('fromPhone');
-  const to = val('toAddr'), toPh = val('toPhone');
+  // display (지명 축약) values — used for the client confirmation message.
+  // phone fields use valPhone() so an untouched "010" default reads as blank
+  // here rather than leaking into the generated messages as a fake number.
+  const from = val('fromAddr'), fromPh = valPhone('fromPhone');
+  const to = val('toAddr'), toPh = valPhone('toPhone');
   // full/detailed addresses — always used for the driver message so the
   // driver still gets a navigable address, even though the visible fields
   // above are shortened to a place name; falls back to the display value
@@ -1152,7 +1159,7 @@ function generateAll(){
   const fee = val('feeMain'), fuel = val('feeFuel');
   const date = val('orderDate');
   const note = val('requestNote');
-  const driverPh = val('driverPhone');
+  const driverPh = valPhone('driverPhone');
   const sel = document.getElementById('clientSelect');
   const clientName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
 
@@ -1248,7 +1255,7 @@ function copyBox(id, btn){
 function updateSmsLink(){
   const link = document.getElementById('btnSmsDriver');
   if(!link) return;
-  const phone = val('driverPhone');
+  const phone = valPhone('driverPhone');
   const text = document.getElementById('driverMsg').value;
   if(!phone || !text.trim()){
     link.href = 'javascript:void(0)';
@@ -1260,10 +1267,10 @@ function updateSmsLink(){
   link.href = `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
 }
 function handleSmsLinkClick(e){
-  const phone = val('driverPhone');
+  const phone = valPhone('driverPhone');
   const text = document.getElementById('driverMsg').value;
   if(!text.trim()){ e.preventDefault(); toast('먼저 생성 버튼을 눌러주세요'); return; }
-  if(!phone){ e.preventDefault(); toast('기사 전화번호를 먼저 입력하세요'); return; }
+  if(!phone){ e.preventDefault(); toast('기사 전화번호를 마저 입력하세요 (010 뒤 8자리)'); return; }
   // href is already current (updateSmsLink runs on every relevant change) —
   // let the browser's native anchor navigation take it from here
 }
