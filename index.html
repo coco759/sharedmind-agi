@@ -446,6 +446,15 @@ const KNOWN_DEFAULTS = {
   'Ssen 무역':    { defaultArrival: '송도유원지', fuelCallDestination: true },
 };
 
+// 거래처 전체가 아니라 특정 도착지 하나에만 적용되는 안내 — 처음 등록될 때만
+// 시드로 넣어주고, 이후 사용자가 프리셋 설정 패널에서 수정/삭제한 내용은 덮어쓰지 않음
+const KNOWN_PRESETS = {
+  '제이에스무역': [
+    // 능허대로312: 도착지 고객이 전화 연락 없이 주차 후 사진만 받길 원함
+    { name: '능허대로312', address: '인천 연수구 능허대로312', noContactCall: true },
+  ],
+};
+
 function blankClient(name){
   return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', defaultArrivalPhone:'',
     useMapInstead:false, mapNote:'', fuelCallDestination:false};
@@ -465,6 +474,7 @@ function loadClients(){
   // backfill any missing fields (older saves) and known example defaults
   list.forEach(c=>{
     if(!c.presets) c.presets = [];
+    c.presets.forEach(p=>{ if(p.noContactCall === undefined) p.noContactCall = false; });
     if(c.bizNumber === undefined) c.bizNumber = '';
     if(c.defaultArrival === undefined) c.defaultArrival = '';
     if(c.defaultArrivalPhone === undefined) c.defaultArrivalPhone = '';
@@ -477,6 +487,14 @@ function loadClients(){
         if(!c[k]) c[k] = known[k];
       });
     }
+    // 시드 프리셋: 이름이 같은 프리셋이 이미 있으면(사용자가 추가/수정했든) 건드리지
+    // 않고, 아예 없을 때만 한 번 추가
+    const knownPresets = KNOWN_PRESETS[c.name];
+    if(knownPresets){
+      knownPresets.forEach(kp=>{
+        if(!c.presets.some(p=>p.name===kp.name)) c.presets.push({id:cid(), phone:'', ...kp});
+      });
+    }
   });
 
   // make sure every known example client exists even in an older save that
@@ -485,6 +503,7 @@ function loadClients(){
     if(!list.some(c=>c.name===name)){
       const c = blankClient(name);
       Object.assign(c, KNOWN_DEFAULTS[name]);
+      (KNOWN_PRESETS[name]||[]).forEach(kp=>{ c.presets.push({id:cid(), phone:'', ...kp}); });
       list.push(c);
     }
   });
@@ -585,10 +604,13 @@ function renderClientPanel(){
         ${c.presets.map(p=>`
           <div class="preset-row">
             <div>
-              <div>${esc(p.name)}</div>
+              <div>${esc(p.name)}${p.noContactCall ? ' <span class="meta">(연락없이 사진만)</span>' : ''}</div>
               <div class="meta">${esc(p.address||'')}${p.phone? ' · '+esc(p.phone):''}</div>
             </div>
-            <button class="small-btn danger" data-action="delete-preset" data-id="${c.id}" data-preset-id="${p.id}">삭제</button>
+            <div style="display:flex;gap:6px;flex:0 0 auto;">
+              <button class="small-btn" data-action="toggle-preset-nocall" data-id="${c.id}" data-preset-id="${p.id}">${p.noContactCall ? '연락 방식 원복' : '연락없이 사진만'}</button>
+              <button class="small-btn danger" data-action="delete-preset" data-id="${c.id}" data-preset-id="${p.id}">삭제</button>
+            </div>
           </div>
         `).join('') || '<div class="meta" style="padding:6px 0;">등록된 도착지 프리셋(별칭) 없음</div>'}
       </div>
@@ -641,13 +663,22 @@ function addPreset(clientId){
   const phone = document.getElementById('pphone_'+clientId).value.trim();
   const addr = document.getElementById('paddr_'+clientId).value.trim();
   if(!name && !addr) return;
-  c.presets.push({id:cid(), name: name||addr, address: addr, phone});
+  c.presets.push({id:cid(), name: name||addr, address: addr, phone, noContactCall:false});
   saveClients(); renderClientPanel(); renderPresetChips();
 }
 function deletePreset(clientId, presetId){
   const c = clients.find(x=>x.id===clientId);
   c.presets = c.presets.filter(p=>p.id!==presetId);
   saveClients(); renderClientPanel(); renderPresetChips();
+}
+// some 도착지는 사장님이 "전화하지 말고 주차 후 사진만 보내달라"고 요청하는 경우가
+// 있음 (거래처 전체가 아니라 그 도착지에 한해서) — 프리셋 단위로 켜고 끌 수 있게 토글
+function togglePresetNoCall(clientId, presetId){
+  const c = clients.find(x=>x.id===clientId);
+  const p = c && c.presets.find(x=>x.id===presetId);
+  if(!p) return;
+  p.noContactCall = !p.noContactCall;
+  saveClients(); renderClientPanel();
 }
 
 /* ---------------- client select + preset chips ---------------- */
@@ -1252,6 +1283,20 @@ function generateAll(){
         '     ※ 위 사업자번호로 발행되지 않은 영수증은 주유비 지급 불가',
       ];
 
+  // 일부 도착지는 (거래처 전체가 아니라 그 도착지에 한해서) "전화하지 말고 주차
+  // 후 사진만 보내달라"고 요청함 — 해당 도착지가 저장된 프리셋과 정확히 일치하고
+  // noContactCall이 켜져 있으면 1/2번 안내 문구를 연락 없는 버전으로 바꿔치기
+  const matchedPreset = client && client.presets.find(p=> p.address && toFull && p.address===toFull);
+  const contactLines = (matchedPreset && matchedPreset.noContactCall)
+    ? [
+        '1. 도착지 고객에게 별도 연락 없이 진행해주세요 (요청사항).',
+        '2. 주차 완료 후: 차량 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
+      ]
+    : [
+        '1. 배차 즉시: 도착지 고객에게 연락 (배차 완료 안내)',
+        '2. 운행 전/후: 차량 사진 & 계기판 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
+      ];
+
   const driverLines = [
     '[배차 안내]',
     `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
@@ -1270,8 +1315,7 @@ function generateAll(){
     note || '',
     '',
     '🚨 기사님 필독 사항',
-    '1. 배차 즉시: 도착지 고객에게 연락 (배차 완료 안내)',
-    '2. 운행 전/후: 차량 사진 & 계기판 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
+    ...contactLines,
     '3. 통행료: 기사님 부담 (하이패스 미납, 무단통과 시 정산 불가 및 배차 제한)',
     ...fuelLines,
     '※ 운행 전 출발지와 도착지를 꼭 다시 확인해 주세요. 안전운전 하세요!'
@@ -1442,6 +1486,7 @@ safeInit('거래처 카드 이벤트 위임', ()=>{
     if(action==='rename-client') renameClient(id);
     else if(action==='delete-client') deleteClient(id);
     else if(action==='delete-preset') deletePreset(id, btn.dataset.presetId);
+    else if(action==='toggle-preset-nocall') togglePresetNoCall(id, btn.dataset.presetId);
     else if(action==='add-preset') addPreset(id);
   });
   document.getElementById('clientList').addEventListener('change', e=>{
