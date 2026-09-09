@@ -1299,7 +1299,6 @@ function generateAll(){
 
   const driverLines = [
     '상황실입니다.',
-    '[배차 안내]',
     `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
     fee ? `배차금액: ${fmtMoney(fee)}원` : '',
     '',
