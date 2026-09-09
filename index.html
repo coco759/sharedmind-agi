@@ -1140,6 +1140,14 @@ function val(id){ return document.getElementById(id).value.trim(); }
 // (nothing typed after it yet) the same as truly empty
 function isBlankPhone(v){ return !v || /^010[-\s]*$/.test(v.trim()); }
 function valPhone(id){ const v = val(id); return isBlankPhone(v) ? '' : v; }
+// 기사님들이 출/도착지 연락처를 잘 안 읽고 지나치는 문제 — 굵게 표시할 수 없는
+// 일반 문자메시지에서도 숫자만큼은 눈에 띄게 하려고, 0-9를 유니코드
+// "수학용 굵은 숫자"(Mathematical Bold digits)로 바꿔치기. 실제 볼드체 폰트가
+// 아니라 서로 다른 문자라서 어떤 메시지 앱에서 봐도 항상 굵게 보임
+const BOLD_DIGITS = ['𝟎','𝟏','𝟐','𝟑','𝟒','𝟓','𝟔','𝟕','𝟖','𝟗'];
+function boldDigits(s){
+  return (s||'').replace(/[0-9]/g, d => BOLD_DIGITS[+d]);
+}
 function fmtMoney(v){
   if(!v) return '';
   const n = parseInt(v.replace(/[^\d]/g,''),10);
@@ -1297,20 +1305,27 @@ function generateAll(){
         '2. 운행 전/후: 차량 사진 & 계기판 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
       ];
 
+  // 연락처는 숫자만 볼드 유니코드로 바꿔서 눈에 띄게 하고, "출발지/도착지"
+  // 라벨을 붙여서 어느 번호인지 헷갈리지 않게 함
+  const fromPhShow = fromPh ? boldDigits(fromPh) : '-';
+  const toPhShow = toPh ? boldDigits(toPh) : '-';
+
   const driverLines = [
     '상황실입니다.',
     `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
     fee ? `배차금액: ${fmtMoney(fee)}원` : '',
     '',
+    `📞 연락처 요약 ▶ 출발 ${fromPhShow} / 도착 ${toPhShow}`,
+    '',
     '🚗 출발',
     `주소 : ${fromFull || '-'}`,
     '',
-    `☎ ${fromPh || '-'}`,
+    `☎ 【 출발지 연락처 】 ${fromPhShow}`,
     '',
     '도착',
     arrivalBlock,
     '',
-    `☎ ${toPh || '-'}`,
+    `☎ 【 도착지 연락처 】 ${toPhShow}`,
     '',
     note || '',
     '',
