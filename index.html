@@ -444,6 +444,7 @@ const KNOWN_DEFAULTS = {
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
   'Ssen 무역':    { defaultArrival: '송도유원지', fuelCallDestination: true },
+  '주주무역':     { defaultArrival: '능허대로192', feePaidAtArrival: true }, // 탁송료+주유비 도착지 직접 결제
 };
 
 // 거래처 전체가 아니라 특정 도착지 하나에만 적용되는 안내 — 처음 등록될 때만
@@ -457,7 +458,7 @@ const KNOWN_PRESETS = {
 
 function blankClient(name){
   return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', defaultArrivalPhone:'',
-    useMapInstead:false, mapNote:'', fuelCallDestination:false};
+    useMapInstead:false, mapNote:'', fuelCallDestination:false, feePaidAtArrival:false};
 }
 
 function loadClients(){
@@ -481,6 +482,7 @@ function loadClients(){
     if(c.useMapInstead === undefined) c.useMapInstead = false;
     if(c.mapNote === undefined) c.mapNote = '';
     if(c.fuelCallDestination === undefined) c.fuelCallDestination = false;
+    if(c.feePaidAtArrival === undefined) c.feePaidAtArrival = false;
     const known = KNOWN_DEFAULTS[c.name];
     if(known){
       Object.keys(known).forEach(k=>{
@@ -576,6 +578,15 @@ function renderClientPanel(){
             data-action="update-field" data-id="${c.id}" data-field="fuelCallDestination"
             style="width:auto;vertical-align:middle;margin-right:6px;" />
           주유 필요시 사업자번호 대신 도착지 연락처로 전화 (계기판 사진 보여주고 주유)
+        </label>
+      </div>
+
+      <div class="field" style="margin-bottom:4px;">
+        <label>
+          <input type="checkbox" ${c.feePaidAtArrival?'checked':''}
+            data-action="update-field" data-id="${c.id}" data-field="feePaidAtArrival"
+            style="width:auto;vertical-align:middle;margin-right:6px;" />
+          탁송료 + 주유비 전부 도착지에서 직접 결제 (사업자번호/영수증 절차 없음)
         </label>
       </div>
 
@@ -1277,10 +1288,13 @@ function generateAll(){
   // 막으려면 이 번호도 놓치면 안 되기 때문에 노란 원(🟡)으로 구분
   const DIV = '━━━━━━━━━━━━━━━';
 
-  // 주유 안내: 대부분 거래처는 정해진 번호로 영수증 보내는 방식이지만, 일부
-  // 거래처(예: Ssen 무역)는 대신 도착지 연락처에 직접 전화해서 계기판 사진
-  // 보여주고 그 자리에서 주유 승인을 받는 방식을 씀 — 사업자번호/영수증 절차 없음
-  const fuelLines = (client && client.fuelCallDestination)
+  // 요금/주유 안내: 대부분 거래처는 우리 쪽에서 정산(정해진 번호로 영수증
+  // 보내거나, 도착지에 전화해서 계기판 사진 보여주고 주유)하지만, 일부 거래처
+  // (예: 주주무역)는 탁송료+주유비를 전부 도착지 고객이 현장에서 직접 결제함
+  // — 이 경우 사업자번호/영수증 절차 자체가 필요 없음
+  const fuelLines = (client && client.feePaidAtArrival)
+    ? ['4. 요금 결제: 탁송료 + 주유비 전부 도착지 고객이 현장에서 직접 결제 (사업자번호/영수증 절차 없음)']
+    : (client && client.fuelCallDestination)
     ? [`4. 주유 필요시: 도착지 연락처(${toPh || '-'})로 전화해서 계기판 사진 보여드리고 주유 진행`]
     : [
         `4. 주유 영수증: [주유 영수증 + 차량번호]를 ${receiptPhone}으로 전송. 주유 필요시 계기판 사진 전송 후 주유 안내 받고 주유`,
