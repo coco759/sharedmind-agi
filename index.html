@@ -445,7 +445,7 @@ const KNOWN_DEFAULTS = {
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
   'Ssen 무역':    { defaultArrival: '송도유원지', fuelCallDestination: true },
   '주주무역':     { defaultArrival: '능허대로222', feePaidAtArrival: true }, // 탁송료+주유비 도착지 직접 결제
-  '투바무역':     { defaultArrival: '인천 미추홀구 소성로48 투바무역', oneDayInsuranceProvided: true }, // 원데이보험 우리쪽 가입, 주유비/탁송료 우리쪽 결제(기본방식)
+  '투바무역':     { defaultArrival: '인천 미추홀구 소성로48 투바무역', defaultArrivalPhone: '010-8813-5663', bizNumber: '611-86-03456' },
 };
 
 // 거래처 전체가 아니라 특정 도착지 하나에만 적용되는 안내 — 처음 등록될 때만
@@ -496,6 +496,9 @@ function loadClients(){
     // 이미 저장해둔 기기가 있을 수 있어서, 값이 비어있지 않아도 이 한 번은
     // 강제로 고쳐줌 (그 다음부턴 사용자가 직접 고치면 그대로 유지됨)
     if(c.name==='주주무역' && c.defaultArrival==='능허대로192') c.defaultArrival = '능허대로222';
+    // 투바무역: 원데이보험 안내 문구는 필요 없다고 해서 뺌 — 등록 직후라
+    // 이미 켜진 채로 저장된 기기가 있을 수 있어서 한 번 강제로 꺼줌
+    if(c.name==='투바무역' && c.oneDayInsuranceProvided) c.oneDayInsuranceProvided = false;
     // 시드 프리셋: 이름이 같은 프리셋이 이미 있으면(사용자가 추가/수정했든) 건드리지
     // 않고, 아예 없을 때만 한 번 추가
     const knownPresets = KNOWN_PRESETS[c.name];
