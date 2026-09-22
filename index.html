@@ -439,7 +439,7 @@ const SETTINGS_KEY = 'tacsong_settings_v1';
 // browser and to backfill fields on clients that already exist but predate
 // these settings (bizNumber / defaultArrival / defaultArrivalPhone / useMapInstead / mapNote)
 const KNOWN_DEFAULTS = {
-  '제이에스무역': { bizNumber: '321-44-01287' }, // 도착지는 매번 달라짐 → 고정값 없음
+  '제이에스무역': { bizNumber: '321-44-01287', coversFuelAndParking: true }, // 도착지는 매번 달라짐 → 고정값 없음
   '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', defaultArrivalPhone: '010-6231-4179', bizNumber: '6118603456' },
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
@@ -460,7 +460,7 @@ const KNOWN_PRESETS = {
 function blankClient(name){
   return {id:cid(), name, presets:[], bizNumber:'', defaultArrival:'', defaultArrivalPhone:'',
     useMapInstead:false, mapNote:'', fuelCallDestination:false, feePaidAtArrival:false,
-    oneDayInsuranceProvided:false};
+    oneDayInsuranceProvided:false, coversFuelAndParking:false};
 }
 
 function loadClients(){
@@ -486,6 +486,7 @@ function loadClients(){
     if(c.fuelCallDestination === undefined) c.fuelCallDestination = false;
     if(c.feePaidAtArrival === undefined) c.feePaidAtArrival = false;
     if(c.oneDayInsuranceProvided === undefined) c.oneDayInsuranceProvided = false;
+    if(c.coversFuelAndParking === undefined) c.coversFuelAndParking = false;
     const known = KNOWN_DEFAULTS[c.name];
     if(known){
       Object.keys(known).forEach(k=>{
@@ -606,6 +607,15 @@ function renderClientPanel(){
             data-action="update-field" data-id="${c.id}" data-field="oneDayInsuranceProvided"
             style="width:auto;vertical-align:middle;margin-right:6px;" />
           원데이보험 우리쪽에서 가입 (기사에게 별도 가입 불필요 안내)
+        </label>
+      </div>
+
+      <div class="field" style="margin-bottom:4px;">
+        <label>
+          <input type="checkbox" ${c.coversFuelAndParking?'checked':''}
+            data-action="update-field" data-id="${c.id}" data-field="coversFuelAndParking"
+            style="width:auto;vertical-align:middle;margin-right:6px;" />
+          주유비 + 주차비 전부 상황실 부담 (기사문자에 눈에 띄게 강조, 도착지 문의 방지)
         </label>
       </div>
 
@@ -1315,6 +1325,16 @@ function generateAll(){
     ? ['4. 요금 결제: 탁송료 + 주유비 전부 도착지 고객이 현장에서 직접 결제 (사업자번호/영수증 절차 없음)']
     : (client && client.fuelCallDestination)
     ? [`4. 주유 필요시: 도착지 연락처(${toPh || '-'})로 전화해서 계기판 사진 보여드리고 주유 진행`]
+    : (client && client.coversFuelAndParking)
+    ? [
+        `4. 주유비/주차비 영수증: [영수증 + 차량번호]를 ${receiptPhone}으로 전송 — 도착지에 문의하지 마시고 전부 상황실로 보내주세요`,
+        '',
+        DIV,
+        '🟡 사업자번호 (지출증빙) 🟡',
+        bizNumber,
+        DIV,
+        '※ 위 사업자번호로 발행되지 않은 영수증은 지급 불가',
+      ]
     : [
         `4. 주유 영수증: [주유 영수증 + 차량번호]를 ${receiptPhone}으로 전송. 주유 필요시 계기판 사진 전송 후 주유 안내 받고 주유`,
         '',
@@ -1324,6 +1344,18 @@ function generateAll(){
         DIV,
         '※ 위 사업자번호로 발행되지 않은 영수증은 주유비 지급 불가',
       ];
+
+  // 주유비+주차비를 상황실이 전액 부담하는 거래처(예: 제이에스무역)는, 기사님들이
+  // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 —
+  // 본문 맨 위(차량/배차금액 바로 아래)에 눈에 확 띄는 파란 박스로 미리 못박아둠
+  const feeCoverageNotice = (client && client.coversFuelAndParking)
+    ? [
+        DIV,
+        '🔵 주유비 + 주차비 전액 상황실 부담 🔵',
+        '도착지 고객에게 문의하지 마세요! 영수증만 보내주시면 됩니다',
+        DIV,
+      ]
+    : [];
 
   // 원데이보험을 거래처가 아니라 우리(상황실) 쪽에서 미리 가입해주는 경우
   // (예: 투바무역) — 기사님이 따로 가입할 필요 없다고 안내
@@ -1356,6 +1388,8 @@ function generateAll(){
     '상황실입니다.',
     `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
     fee ? `배차금액: ${fmtMoney(fee)}원` : '',
+    '',
+    ...feeCoverageNotice,
     '',
     '🚗 출발',
     `주소 : ${fromFull || '-'}`,
