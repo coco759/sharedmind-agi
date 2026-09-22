@@ -1346,14 +1346,18 @@ function generateAll(){
       ];
 
   // 주유비+주차비를 상황실이 전액 부담하는 거래처(예: 제이에스무역)는, 기사님들이
-  // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 —
-  // 본문 맨 위(차량/배차금액 바로 아래)에 눈에 확 띄는 파란 박스로 미리 못박아둠
+  // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 — 문자 맨
+  // 첫 줄(인사말보다도 먼저)에, 다른 박스(━)와는 다른 경고용 테두리(⚠️)로
+  // 확실히 구분되게 못박아둠
+  const WARN_DIV = '⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️';
   const feeCoverageNotice = (client && client.coversFuelAndParking)
     ? [
-        DIV,
-        '🔵 주유비 + 주차비 전액 상황실 부담 🔵',
-        '도착지 고객에게 문의하지 마세요! 영수증만 보내주시면 됩니다',
-        DIV,
+        WARN_DIV,
+        '🔵 주유비 + 주차비는 상황실이 전액 부담합니다 🔵',
+        '도착지 고객에게 절대 문의하지 마세요!',
+        '영수증만 상황실로 보내주시면 끝입니다',
+        WARN_DIV,
+        '',
       ]
     : [];
 
@@ -1385,11 +1389,10 @@ function generateAll(){
   const toPhLine = toPh || '번호 없음';
 
   const driverLines = [
+    ...feeCoverageNotice,
     '상황실입니다.',
     `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
     fee ? `배차금액: ${fmtMoney(fee)}원` : '',
-    '',
-    ...feeCoverageNotice,
     '',
     '🚗 출발',
     `주소 : ${fromFull || '-'}`,
