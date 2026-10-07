@@ -997,10 +997,20 @@ function autoExtract(){
       if(foundKw){
         const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
         const brandPart = BRAND_NAMES.map(esc).join('|');
+        // 세대/트림 코드(아반떼 HD, 그랜저 HG, YF 소나타, NF 소나타 등)는 모델명
+        // 앞이나 뒤에 영문 1~3자 + 숫자 0~2자 형태로 붙는 경우가 대부분이라,
+        // 모델명 하나하나에 조합을 전부 등록하는 대신 범용으로 흡수
+        const TRIM_CODE = '[A-Za-z]{1,3}[0-9]{0,2}';
         // also absorb a leading 2-digit 연식 prefix directly on the model name
         // (e.g. "17크루즈" = 2017년식 크루즈) so it doesn't get left behind as a
         // stray number once the model name itself is pulled out
-        const vehicleRe = new RegExp('(?:(?:'+brandPart+')\\s+)?(?:\\d{2}\\s*)?'+esc(foundKw), 'i');
+        const vehicleRe = new RegExp(
+          '(?:(?:'+brandPart+')\\s+)?' +
+          '(?:'+TRIM_CODE+'\\s+)?' +       // 앞쪽 세대코드: "YF 소나타", "NF 소나타"
+          '(?:\\d{2}\\s*)?' +
+          esc(foundKw) +
+          '(?:\\s*'+TRIM_CODE+')?',        // 뒤쪽 세대코드: "아반떼 HD", "그랜저 HG"
+          'i');
         const m = working.match(vehicleRe);
         if(m && m[0].trim()){
           vehicleName = m[0].trim();
