@@ -1304,6 +1304,21 @@ function generateAll(){
   const sel = document.getElementById('clientSelect');
   const clientName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
 
+  // 생성 누르기 전에 핵심 항목이 비어있으면 바로 알려주고 중단 — 빈 칸인 채로
+  // 기사님께 나가는 실수를 막기 위함. 전화번호는 valPhone()으로 "010"만
+  // 남아있는 미입력 상태도 빈 값으로 취급돼서 여기 걸림. 이미 생성해둔
+  // 메시지 박스는 그대로 두고(지우지 않음) 빠진 항목만 채우고 다시 누르면 됨.
+  const missing = [];
+  if(!fromFull) missing.push('출발지 주소');
+  if(!toFull) missing.push('도착지 주소');
+  if(!car) missing.push('차종');
+  if(!carNum) missing.push('차량번호');
+  if(!driverPh) missing.push('기사 전화번호');
+  if(missing.length){
+    toast(`⚠️ 빠진 항목: ${missing.join(', ')}`);
+    return;
+  }
+
   const dateStr = date ? formatDateKo(date) : '';
 
   // 1) message to client (의뢰인 확인 문자) — region(출발지 기준) + 차량 + 기사연락처 + 금액만
