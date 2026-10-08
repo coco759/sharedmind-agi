@@ -1322,114 +1322,57 @@ function generateAll(){
     arrivalBlock = toFull || '-';
   }
 
-  // 출발지/도착지 번호와 같은 방식(색깔 원 + 굵은 구분선)으로 사업자번호도
-  // 눈에 띄게 — 영수증에 잘못된 사업자번호로 찍혀서 주유비가 안 나가는 실수를
-  // 막으려면 이 번호도 놓치면 안 되기 때문에 노란 원(🟡)으로 구분
-  const DIV = '━━━━━━━━━━━━━━━';
-
-  // 요금/주유 안내: 대부분 거래처는 우리 쪽에서 정산(정해진 번호로 영수증
-  // 보내거나, 도착지에 전화해서 계기판 사진 보여주고 주유)하지만, 일부 거래처
-  // (예: 주주무역)는 탁송료+주유비를 전부 도착지 고객이 현장에서 직접 결제함
-  // — 이 경우 사업자번호/영수증 절차 자체가 필요 없음
-  const fuelLines = (client && client.feePaidAtArrival)
-    ? ['4. 요금 결제: 탁송료 + 주유비 전부 도착지 고객이 현장에서 직접 결제 (사업자번호/영수증 절차 없음)']
-    : (client && client.fuelCallDestination)
-    ? [`4. 주유 필요시: 도착지 연락처(${toPh || '-'})로 전화해서 계기판 사진 보여드리고 주유 진행`]
-    : (client && client.coversFuelAndParking)
-    ? [
-        `4. 주유비/주차비 영수증: [영수증 + 차량번호]를 ${receiptPhone}으로 전송 — 도착지에 문의하지 마시고 전부 상황실로 보내주세요`,
-        '',
-        DIV,
-        '🟡 사업자번호 (지출증빙) 🟡',
-        bizNumber,
-        DIV,
-        '※ 위 사업자번호로 발행되지 않은 영수증은 지급 불가',
-      ]
-    : [
-        `4. 주유 영수증: [주유 영수증 + 차량번호]를 ${receiptPhone}으로 전송. 주유 필요시 계기판 사진 전송 후 주유 안내 받고 주유`,
-        '',
-        DIV,
-        '🟡 사업자번호 (지출증빙) 🟡',
-        bizNumber,
-        DIV,
-        '※ 위 사업자번호로 발행되지 않은 영수증은 주유비 지급 불가',
-      ];
-
-  // 주유비+주차비를 상황실이 전액 부담하는 거래처(예: 제이에스무역)는, 기사님들이
-  // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 — 문자 맨
-  // 첫 줄(인사말보다도 먼저)에, 다른 박스(━)와는 다른 경고용 테두리(⚠️)로
-  // 확실히 구분되게 못박아둠
-  const WARN_DIV = '⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️';
-  const feeCoverageNotice = (client && client.coversFuelAndParking)
-    ? [
-        WARN_DIV,
-        '🔵 주유비 + 주차비는 상황실이 전액 부담합니다 🔵',
-        '도착지 고객에게 절대 문의하지 마세요!',
-        '영수증만 상황실로 보내주시면 끝입니다',
-        WARN_DIV,
-        '',
-      ]
-    : [];
-
-  // 원데이보험을 거래처가 아니라 우리(상황실) 쪽에서 미리 가입해주는 경우
-  // (예: 투바무역) — 기사님이 따로 가입할 필요 없다고 안내
-  const insuranceLines = (client && client.oneDayInsuranceProvided)
-    ? ['🛡️ 원데이보험은 저희 쪽에서 가입 완료했습니다. 별도로 가입하지 않으셔도 됩니다.']
-    : [];
-
-  // 일부 도착지는 (거래처 전체가 아니라 그 도착지에 한해서) "전화하지 말고 주차
-  // 후 사진만 보내달라"고 요청함 — 해당 도착지가 저장된 프리셋과 정확히 일치하고
-  // noContactCall이 켜져 있으면 1/2번 안내 문구를 연락 없는 버전으로 바꿔치기
-  const matchedPreset = client && client.presets.find(p=> p.address && toFull && p.address===toFull);
-  const contactLines = (matchedPreset && matchedPreset.noContactCall)
-    ? [
-        '1. 도착지 고객에게 별도 연락 없이 진행해주세요 (요청사항).',
-        '2. 주차 완료 후: 차량 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
-      ]
-    : [
-        '1. 배차 즉시: 도착지 고객에게 연락 (배차 완료 안내)',
-        '2. 운행 전/후: 차량 사진 & 계기판 사진을 도착지 고객에게 전송 (주차 위치 명확히 나오게 촬영)',
-      ];
-
-  // 출발지/도착지 번호를 절대 혼동하지 않게: 각 번호를 색깔이 다른 원(🟢/🔴)과
-  // 굵은 구분선으로 감싸서 시각적으로 완전히 분리. 색깔 이모지/괘선 문자는
-  // 일반 이모지 폰트로 렌더되므로(유니코드 "수학용 굵은 숫자"와 달리) 문자메시지
-  // 기본 폰트에서도 깨지지 않고 항상 보임
+  // 기사문자는 문자로 보내기엔 너무 길다는 피드백으로 한 줄 요약형(초간결)
+  // 포맷으로 압축 — 아래는 거래처별 조건에 따라 바뀌는 요약 한 줄씩을 먼저
+  // 만들고, 마지막에 driverLines로 조립한다. 박스/구분선 없이 색깔 이모지와
+  // "/"로 구분한 한 줄 요약으로 대체했지만, 내용(금액/사업자번호 불일치 경고/
+  // 도착지 문의 금지/재확인 안내 등)은 하나도 빠뜨리지 않음.
   const fromPhLine = fromPh || '번호 없음';
   const toPhLine = toPh || '번호 없음';
 
+  // 주유비+주차비를 상황실이 전액 부담하는 거래처(예: 제이에스무역)는, 기사님들이
+  // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 — 문자
+  // 맨 첫 줄에 한 줄로 못박아둠
+  const feeCoverageLine = (client && client.coversFuelAndParking)
+    ? '🔵 주유·주차비 상황실 전액부담(도착지 문의✕)'
+    : '';
+
+  // 원데이보험을 거래처가 아니라 우리(상황실) 쪽에서 미리 가입해주는 경우
+  // (예: 투바무역) — 기사님이 따로 가입할 필요 없다고 한 줄로 안내
+  const insuranceLine = (client && client.oneDayInsuranceProvided)
+    ? '🛡️ 원데이보험 상황실 가입완료 (별도 가입 불필요)'
+    : '';
+
+  // 일부 도착지는 (거래처 전체가 아니라 그 도착지에 한해서) "전화하지 말고 주차
+  // 후 사진만 보내달라"고 요청함 — 해당 도착지가 저장된 프리셋과 정확히 일치하고
+  // noContactCall이 켜져 있으면 연락 없는 버전으로 교체
+  const matchedPreset = client && client.presets.find(p=> p.address && toFull && p.address===toFull);
+  const contactSummary = (matchedPreset && matchedPreset.noContactCall)
+    ? '도착지 연락없이 주차사진만'
+    : '배차즉시 도착지연락+전후사진전송';
+
+  // 요금/주유 안내: 대부분 거래처는 우리 쪽에서 정산(사업자번호로 영수증 받거나,
+  // 도착지에 전화해서 계기판 사진 보여주고 주유)하지만, 일부 거래처(예: 주주무역)는
+  // 탁송료+주유비를 전부 도착지 고객이 현장에서 직접 결제함 — 사업자번호/영수증
+  // 절차 자체가 필요 없음. 기본/coversFuelAndParking 케이스는 "다른 번호로
+  // 발행된 영수증은 지급 불가"라는 경고가 핵심이라 한 줄 요약에도 꼭 남겨둠
+  const fuelSummary = (client && client.feePaidAtArrival)
+    ? '탁송료+주유비 도착지직접결제'
+    : (client && client.fuelCallDestination)
+    ? `주유시 도착지(☎${toPh || '-'})전화승인`
+    : `영수증→${receiptPhone}(${bizNumber} 외 지급불가)`;
+
   const driverLines = [
-    ...feeCoverageNotice,
-    '상황실입니다.',
-    `차량: ${[car, carNum && '/('+carNum+')'].filter(Boolean).join(' ')}`.trim(),
-    fee ? `배차금액: ${fmtMoney(fee)}원` : '',
+    ...(feeCoverageLine ? [feeCoverageLine] : []),
+    `상황실 배차안내 — ${car}${carNum ? `(${carNum})` : ''}${fee ? ' / '+fmtMoney(fee)+'원' : ''}`,
+    ...(insuranceLine ? [insuranceLine] : []),
     '',
-    '🚗 출발',
-    `주소 : ${fromFull || '-'}`,
+    `🟢출발 ${fromFull || '-'} ☎${fromPhLine}`,
+    `🔴도착 ${arrivalBlock} ☎${toPhLine}`,
+    ...(note ? ['', note] : []),
     '',
-    DIV,
-    `🟢 출발지 전화번호 🟢`,
-    `☎ ${fromPhLine}`,
-    DIV,
-    '',
-    '도착',
-    arrivalBlock,
-    '',
-    DIV,
-    `🔴 도착지 전화번호 🔴`,
-    `☎ ${toPhLine}`,
-    DIV,
-    '',
-    note || '',
-    '',
-    '🚨 기사님 필독 사항',
-    '📸 출발 전: 차량 전후좌우 사진을 도착지 고객에게 전송 후 출발해주세요',
-    ...contactLines,
-    '3. 통행료: 기사님 부담 (하이패스 미납, 무단통과 시 정산 불가 및 배차 제한)',
-    ...fuelLines,
-    ...insuranceLines,
-    '💛 의뢰인/고객님께는 항상 친절하고 상냥하게 응대 부탁드립니다!',
-    '※ 운행 전 출발지와 도착지를 꼭 다시 확인해 주세요. 안전운전 하세요!'
+    `필독: 출발전 전후좌우사진→출발 / ${contactSummary} / 통행료기사부담 / ${fuelSummary}`,
+    '운행전 주소재확인·친절응대·안전운전 💛',
   ];
   // collapse the intentionally-blank spacer lines down to single blank lines
   document.getElementById('driverMsg').value = driverLines.join('\n').replace(/\n{3,}/g,'\n\n');
