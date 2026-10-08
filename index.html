@@ -1380,8 +1380,8 @@ function generateAll(){
 
   const arrivalSteps = [
     noContactDestination
-      ? step('도착지 연락없이 주차 완료 후 사진만 전송')
-      : step('도착 즉시 도착지 고객에게 연락 → 주차 완료 후 사진 전송'),
+      ? step('도착지 연락없이 도착지 번호로 주차완료 사진 전송')
+      : step('도착 즉시 도착지 고객에게 연락 → 도착지 번호로 주차완료 사진 전송'),
   ];
   if(client && client.feePaidAtArrival){
     arrivalSteps.push(step('탁송료 + 주유비: 전부 도착지에서 직접 결제받기'));
