@@ -812,7 +812,8 @@ const VEHICLE_KEYWORDS = ['소나타','아반떼','그랜저','싼타페','투�
   '니로','벤츠','BMW','아우디','폭스바겐','볼보','렉서스','도요타','캠리','혼다','닛산','아반떼hd',
   '아반떼HD','스타리아','올란도','다마스','라보',
   '크루즈','스파크','아베오','트래버스','콜로라도','임팔라','더뉴','올뉴','티코','프라이드','엑센트','베르나',
-  '베라크루즈'];
+  '베라크루즈',
+  '쏘나타']; // "소나타"의 흔한 구어체 표기(된소리) — 등록 안 하면 통째로 못 알아보고 주소로 샘
 
 // brand names that often precede a bare model name (예: "KIA K5") — grouped with
 // the model into one vehicleName so a mixed "차량정보+주소" line (real카톡 order
@@ -1013,7 +1014,7 @@ function autoExtract(){
         // stray number once the model name itself is pulled out
         const vehicleRe = new RegExp(
           '(?:(?:'+brandPart+')\\s+)?' +
-          '(?:'+TRIM_CODE+'\\s+)?' +       // 앞쪽 세대코드: "YF 소나타", "NF 소나타"
+          '(?:'+TRIM_CODE+'\\s*)?' +       // 앞쪽 세대코드: "YF 소나타", "NF쏘나타"(띄어쓰기 없어도)
           '(?:\\d{2}\\s*)?' +
           esc(foundKw) +
           '(?:\\s*'+TRIM_CODE+')?',        // 뒤쪽 세대코드: "아반떼 HD", "그랜저 HG"
