@@ -811,7 +811,8 @@ const VEHICLE_KEYWORDS = ['소나타','아반떼','그랜저','싼타페','투�
   '트레일블레이저','이쿼녹스','로체','제네시스','G70','G80','G90','GV70','GV80','아이오닉','EV6',
   '니로','벤츠','BMW','아우디','폭스바겐','볼보','렉서스','도요타','캠리','혼다','닛산','아반떼hd',
   '아반떼HD','스타리아','올란도','다마스','라보',
-  '크루즈','스파크','아베오','트래버스','콜로라도','임팔라','더뉴','올뉴','티코','프라이드','엑센트','베르나'];
+  '크루즈','스파크','아베오','트래버스','콜로라도','임팔라','더뉴','올뉴','티코','프라이드','엑센트','베르나',
+  '베라크루즈'];
 
 // brand names that often precede a bare model name (예: "KIA K5") — grouped with
 // the model into one vehicleName so a mixed "차량정보+주소" line (real카톡 order
@@ -989,10 +990,16 @@ function autoExtract(){
     // (e.g. "KIA K5   수원 권선구 권선로..."), and without this the vehicle text
     // used to leak into whatever got treated as the address on that line
     if(!vehicleName){
+      const esc0 = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       // prefer the *longest* matching keyword (e.g. "아반떼hd" over just "아반떼")
-      // so a shorter prefix match doesn't leave a stray suffix like "hd" behind
+      // so a shorter prefix match doesn't leave a stray suffix like "hd" behind.
+      // also require that nothing immediately precedes the match inside the same
+      // 한글 word (lookbehind: not a Hangul syllable right before it) — otherwise
+      // a registered keyword that happens to be a *suffix* of some other model
+      // name (e.g. "크루즈" 안에 숨어있는 "베라크루즈") gets falsely matched,
+      // splitting the real model name into a stray prefix + the wrong car.
       const foundKw = VEHICLE_KEYWORDS
-        .filter(k=>line.toUpperCase().includes(k.toUpperCase()))
+        .filter(k=> new RegExp('(?<![가-힣])'+esc0(k), 'i').test(line))
         .sort((a,b)=>b.length-a.length)[0];
       if(foundKw){
         const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
