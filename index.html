@@ -1322,11 +1322,10 @@ function generateAll(){
     arrivalBlock = toFull || '-';
   }
 
-  // 기사문자는 문자로 보내기엔 너무 길다는 피드백으로 한 줄 요약형(초간결)
-  // 포맷으로 압축 — 아래는 거래처별 조건에 따라 바뀌는 요약 한 줄씩을 먼저
-  // 만들고, 마지막에 driverLines로 조립한다. 박스/구분선 없이 색깔 이모지와
-  // "/"로 구분한 한 줄 요약으로 대체했지만, 내용(금액/사업자번호 불일치 경고/
-  // 도착지 문의 금지/재확인 안내 등)은 하나도 빠뜨리지 않음.
+  // 기사문자는 문자로 보내기엔 너무 길다는 피드백으로 길이를 줄이되, 한 줄에
+  // "/"로 다 욱여넣으니 오히려 뭐가 뭔지 구분이 안 가 실수하기 쉽다는 피드백을
+  // 다시 받아서 — 항목별로 줄은 따로 나누고(①②③④), 전화번호는 주소와
+  // 분리된 줄에 항상 단독으로 오게 해서 한눈에 보고 헷갈리지 않게 함.
   const fromPhLine = fromPh || '번호 없음';
   const toPhLine = toPh || '번호 없음';
 
@@ -1334,7 +1333,7 @@ function generateAll(){
   // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 — 문자
   // 맨 첫 줄에 한 줄로 못박아둠
   const feeCoverageLine = (client && client.coversFuelAndParking)
-    ? '🔵 주유·주차비 상황실 전액부담(도착지 문의✕)'
+    ? '🔵 주유·주차비 상황실 전액 부담 (도착지 문의 ✕)'
     : '';
 
   // 원데이보험을 거래처가 아니라 우리(상황실) 쪽에서 미리 가입해주는 경우
@@ -1348,31 +1347,38 @@ function generateAll(){
   // noContactCall이 켜져 있으면 연락 없는 버전으로 교체
   const matchedPreset = client && client.presets.find(p=> p.address && toFull && p.address===toFull);
   const contactSummary = (matchedPreset && matchedPreset.noContactCall)
-    ? '도착지 연락없이 주차사진만'
-    : '배차즉시 도착지연락+전후사진전송';
+    ? '도착지 연락없이 주차 사진만 전송'
+    : '배차 즉시 도착지 연락 + 전/후 사진 전송';
 
   // 요금/주유 안내: 대부분 거래처는 우리 쪽에서 정산(사업자번호로 영수증 받거나,
   // 도착지에 전화해서 계기판 사진 보여주고 주유)하지만, 일부 거래처(예: 주주무역)는
   // 탁송료+주유비를 전부 도착지 고객이 현장에서 직접 결제함 — 사업자번호/영수증
   // 절차 자체가 필요 없음. 기본/coversFuelAndParking 케이스는 "다른 번호로
-  // 발행된 영수증은 지급 불가"라는 경고가 핵심이라 한 줄 요약에도 꼭 남겨둠
+  // 발행된 영수증은 지급 불가"라는 경고가 핵심이라 요약에도 꼭 남겨둠
   const fuelSummary = (client && client.feePaidAtArrival)
-    ? '탁송료+주유비 도착지직접결제'
+    ? '탁송료 + 주유비 전부 도착지에서 직접 결제'
     : (client && client.fuelCallDestination)
-    ? `주유시 도착지(☎${toPh || '-'})전화승인`
-    : `영수증→${receiptPhone}(${bizNumber} 외 지급불가)`;
+    ? `주유 필요시 도착지(☎${toPh || '-'})로 전화해서 승인받기`
+    : `영수증 → ${receiptPhone} (${bizNumber} 외 지급불가)`;
 
   const driverLines = [
     ...(feeCoverageLine ? [feeCoverageLine] : []),
     `상황실 배차안내 — ${car}${carNum ? `(${carNum})` : ''}${fee ? ' / '+fmtMoney(fee)+'원' : ''}`,
     ...(insuranceLine ? [insuranceLine] : []),
     '',
-    `🟢출발 ${fromFull || '-'} ☎${fromPhLine}`,
-    `🔴도착 ${arrivalBlock} ☎${toPhLine}`,
+    `🟢 출발 ${fromFull || '-'}`,
+    `   ☎ ${fromPhLine}`,
+    `🔴 도착 ${arrivalBlock}`,
+    `   ☎ ${toPhLine}`,
     ...(note ? ['', note] : []),
     '',
-    `필독: 출발전 전후좌우사진→출발 / ${contactSummary} / 통행료기사부담 / ${fuelSummary}`,
-    '운행전 주소재확인·친절응대·안전운전 💛',
+    '[필독]',
+    '① 출발 전: 차량 전후좌우 사진 전송 후 출발',
+    `② ${contactSummary}`,
+    '③ 통행료: 기사님 부담',
+    `④ ${fuelSummary}`,
+    '',
+    '💛 운행 전 주소 재확인 · 친절 응대 · 안전운전',
   ];
   // collapse the intentionally-blank spacer lines down to single blank lines
   document.getElementById('driverMsg').value = driverLines.join('\n').replace(/\n{3,}/g,'\n\n');
