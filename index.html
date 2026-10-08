@@ -1346,20 +1346,46 @@ function generateAll(){
   // 후 사진만 보내달라"고 요청함 — 해당 도착지가 저장된 프리셋과 정확히 일치하고
   // noContactCall이 켜져 있으면 연락 없는 버전으로 교체
   const matchedPreset = client && client.presets.find(p=> p.address && toFull && p.address===toFull);
-  const contactSummary = (matchedPreset && matchedPreset.noContactCall)
-    ? '도착지 연락없이 주차 사진만 전송'
-    : '배차 즉시 도착지 연락 + 전/후 사진 전송';
+  const noContactDestination = !!(matchedPreset && matchedPreset.noContactCall);
 
+  // 그냥 "할 일 목록"을 나열하는 게 아니라, 기사님이 실제로 겪는 순서
+  // (출발지 도착 → 운행 중 → 도착지 도착) 그대로 단계를 나눠서, 각 시점에
+  // 뭘 해야 하는지 헷갈리지 않고 그대로 따라할 수 있게 구성. 번호는 전체
+  // 단계를 통틀어 순서대로 매김 — 사업자번호 불일치 경고 같은 핵심 주의사항은
+  // 절대 생략하지 않고 해당 단계 바로 밑에 들여쓰기로 붙여둠.
+  const CIRCLED = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+  let stepIdx = 0;
+  const step = text => `${CIRCLED[stepIdx++] || (stepIdx+'.')} ${text}`;
+
+  const pickupSteps = [
+    step('차량 전후좌우 사진 촬영 → 도착지 고객에게 전송'),
+    step('사진 전송 확인 후 출발'),
+  ];
+
+  const enRouteSteps = [
+    step('통행료: 기사님 부담 (하이패스 미납·무단통과 시 정산 불가/배차 제한)'),
+  ];
   // 요금/주유 안내: 대부분 거래처는 우리 쪽에서 정산(사업자번호로 영수증 받거나,
   // 도착지에 전화해서 계기판 사진 보여주고 주유)하지만, 일부 거래처(예: 주주무역)는
-  // 탁송료+주유비를 전부 도착지 고객이 현장에서 직접 결제함 — 사업자번호/영수증
-  // 절차 자체가 필요 없음. 기본/coversFuelAndParking 케이스는 "다른 번호로
-  // 발행된 영수증은 지급 불가"라는 경고가 핵심이라 요약에도 꼭 남겨둠
-  const fuelSummary = (client && client.feePaidAtArrival)
-    ? '탁송료 + 주유비 전부 도착지에서 직접 결제'
-    : (client && client.fuelCallDestination)
-    ? `주유 필요시 도착지(☎${toPh || '-'})로 전화해서 승인받기`
-    : `영수증 → ${receiptPhone} (${bizNumber} 외 지급불가)`;
+  // 탁송료+주유비를 전부 도착지 고객이 현장에서 직접 결제함 — 그 경우 주유는
+  // "운행 중"이 아니라 "도착지에서" 처리할 일이라 그쪽 단계로 옮겨둠
+  if(client && client.feePaidAtArrival){
+    // 아래 arrivalSteps에서 처리
+  } else if(client && client.fuelCallDestination){
+    enRouteSteps.push(step(`주유 필요시 도착지(☎${toPh || '-'})로 전화해서 승인받기`));
+  } else {
+    enRouteSteps.push(step(`주유 필요시 영수증[차량번호 포함] → ${receiptPhone} 전송`));
+    enRouteSteps.push(`    ※ ${bizNumber} 사업자번호 아닌 영수증은 지급 불가`);
+  }
+
+  const arrivalSteps = [
+    noContactDestination
+      ? step('도착지 연락없이 주차 완료 후 사진만 전송')
+      : step('도착 즉시 도착지 고객에게 연락 → 주차 완료 후 사진 전송'),
+  ];
+  if(client && client.feePaidAtArrival){
+    arrivalSteps.push(step('탁송료 + 주유비: 전부 도착지에서 직접 결제받기'));
+  }
 
   const driverLines = [
     ...(feeCoverageLine ? [feeCoverageLine] : []),
@@ -1372,11 +1398,14 @@ function generateAll(){
     `   ☎ ${toPhLine}`,
     ...(note ? ['', note] : []),
     '',
-    '[필독]',
-    '① 출발 전: 차량 전후좌우 사진 전송 후 출발',
-    `② ${contactSummary}`,
-    '③ 통행료: 기사님 부담',
-    `④ ${fuelSummary}`,
+    '[출발지 도착 시]',
+    ...pickupSteps,
+    '',
+    '[운행 중]',
+    ...enRouteSteps,
+    '',
+    '[도착지 도착 시]',
+    ...arrivalSteps,
     '',
     '💛 운행 전 주소 재확인 · 친절 응대 · 안전운전',
   ];
