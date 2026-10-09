@@ -1356,7 +1356,7 @@ function generateAll(){
   // 이걸 모르고 도착지 고객한테 전화해서 물어보다가 컴플레인이 생겨서 — 문자
   // 맨 첫 줄에 한 줄로 못박아둠
   const feeCoverageLine = (client && client.coversFuelAndParking)
-    ? '🔵 주유·주차비 상황실 전액 부담 (도착지 문의 ✕)'
+    ? '🔵 주유비+주차비 100% 상황실 부담 — 도착지에 절대 청구 금지!'
     : '';
 
   // 원데이보험을 거래처가 아니라 우리(상황실) 쪽에서 미리 가입해주는 경우
@@ -1396,6 +1396,12 @@ function generateAll(){
     // 아래 arrivalSteps에서 처리
   } else if(client && client.fuelCallDestination){
     enRouteSteps.push(step(`주유 필요시 도착지(☎${toPh || '-'})로 전화해서 승인받기`));
+  } else if(client && client.coversFuelAndParking){
+    // 주유비뿐 아니라 주차비도 상황실이 부담하는 거래처 — 영수증 보내는
+    // 실제 행동 지침에도 "주차비"를 명시해야 기사님이 주유 얘기만 보고
+    // 주차비는 별개라고 오해해서 도착지에 청구하는 실수를 막을 수 있음
+    enRouteSteps.push(step(`주유비/주차비 영수증[차량번호 포함] → ${receiptPhone} 전송`));
+    enRouteSteps.push(`    ※ ${bizNumber} 사업자번호 아닌 영수증은 지급 불가`);
   } else {
     enRouteSteps.push(step(`주유 필요시 영수증[차량번호 포함] → ${receiptPhone} 전송`));
     enRouteSteps.push(`    ※ ${bizNumber} 사업자번호 아닌 영수증은 지급 불가`);
@@ -1408,6 +1414,11 @@ function generateAll(){
   ];
   if(client && client.feePaidAtArrival){
     arrivalSteps.push(step('탁송료 + 주유비: 전부 도착지에서 직접 결제받기'));
+  }
+  if(client && client.coversFuelAndParking){
+    // 실제로 사고가 났던 지점(주차비를 도착지에 청구) 바로 그 단계에 한 번 더
+    // 못박아둠 — 위쪽 안내를 놓쳐도 주차하는 순간 마지막으로 보게 됨
+    arrivalSteps.push(step('주차비 나와도 도착지에 청구 금지 — 영수증만 상황실로 전송'));
   }
 
   const driverLines = [
