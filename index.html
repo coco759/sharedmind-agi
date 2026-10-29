@@ -452,8 +452,11 @@ const KNOWN_DEFAULTS = {
 // 시드로 넣어주고, 이후 사용자가 프리셋 설정 패널에서 수정/삭제한 내용은 덮어쓰지 않음
 const KNOWN_PRESETS = {
   '제이에스무역': [
-    // 능허대로312: 도착지 고객이 전화 연락 없이 주차 후 사진만 받길 원함
-    { name: '능허대로312', address: '인천 연수구 능허대로312', noContactCall: true },
+    // 능허대로312: 도착지 고객이 전화 연락 없이 주차 후 사진만 받길 원함.
+    // 길찾기(컨테이너 끼고 우회전 등)와 후면주차 필수 안내는 사장님이 직접
+    // 공유해주신 약도/안내문 내용 그대로.
+    { name: '능허대로312', address: '인천 연수구 능허대로312', noContactCall: true,
+      parkingNote: '반드시 후면주차! 키는 차 안에 두고, 여러 대 깔끔하게 주차' },
   ],
 };
 
@@ -477,7 +480,10 @@ function loadClients(){
   // backfill any missing fields (older saves) and known example defaults
   list.forEach(c=>{
     if(!c.presets) c.presets = [];
-    c.presets.forEach(p=>{ if(p.noContactCall === undefined) p.noContactCall = false; });
+    c.presets.forEach(p=>{
+      if(p.noContactCall === undefined) p.noContactCall = false;
+      if(p.parkingNote === undefined) p.parkingNote = '';
+    });
     if(c.bizNumber === undefined) c.bizNumber = '';
     if(c.defaultArrival === undefined) c.defaultArrival = '';
     if(c.defaultArrivalPhone === undefined) c.defaultArrivalPhone = '';
@@ -500,6 +506,13 @@ function loadClients(){
     // 투바무역: 원데이보험 안내 문구는 필요 없다고 해서 뺌 — 등록 직후라
     // 이미 켜진 채로 저장된 기기가 있을 수 있어서 한 번 강제로 꺼줌
     if(c.name==='투바무역' && c.oneDayInsuranceProvided) c.oneDayInsuranceProvided = false;
+    // 제이에스무역 능허대로312: 후면주차 안내가 나중에 추가된 필드라, 이미
+    // 프리셋이 저장돼 있는 기기는 parkingNote가 비어있을 테니 한 번 채워줌
+    // (그 다음부턴 사용자가 직접 수정하면 그대로 유지됨)
+    if(c.name==='제이에스무역'){
+      const p = c.presets.find(x=>x.name==='능허대로312');
+      if(p && !p.parkingNote) p.parkingNote = '반드시 후면주차! 키는 차 안에 두고, 여러 대 깔끔하게 주차';
+    }
     // 시드 프리셋: 이름이 같은 프리셋이 이미 있으면(사용자가 추가/수정했든) 건드리지
     // 않고, 아예 없을 때만 한 번 추가
     const knownPresets = KNOWN_PRESETS[c.name];
@@ -646,9 +659,11 @@ function renderClientPanel(){
             <div>
               <div>${esc(p.name)}${p.noContactCall ? ' <span class="meta">(연락없이 사진만)</span>' : ''}</div>
               <div class="meta">${esc(p.address||'')}${p.phone? ' · '+esc(p.phone):''}</div>
+              ${p.parkingNote ? `<div class="meta">🅿️ ${esc(p.parkingNote)}</div>` : ''}
             </div>
-            <div style="display:flex;gap:6px;flex:0 0 auto;">
+            <div style="display:flex;gap:6px;flex:0 0 auto;flex-wrap:wrap;">
               <button class="small-btn" data-action="toggle-preset-nocall" data-id="${c.id}" data-preset-id="${p.id}">${p.noContactCall ? '연락 방식 원복' : '연락없이 사진만'}</button>
+              <button class="small-btn" data-action="edit-preset-parking" data-id="${c.id}" data-preset-id="${p.id}">${p.parkingNote ? '주차안내 수정' : '주차안내 추가'}</button>
               <button class="small-btn danger" data-action="delete-preset" data-id="${c.id}" data-preset-id="${p.id}">삭제</button>
             </div>
           </div>
@@ -703,8 +718,19 @@ function addPreset(clientId){
   const phone = document.getElementById('pphone_'+clientId).value.trim();
   const addr = document.getElementById('paddr_'+clientId).value.trim();
   if(!name && !addr) return;
-  c.presets.push({id:cid(), name: name||addr, address: addr, phone, noContactCall:false});
+  c.presets.push({id:cid(), name: name||addr, address: addr, phone, noContactCall:false, parkingNote:''});
   saveClients(); renderClientPanel(); renderPresetChips();
+}
+// 도착지별 특수 안내(예: 후면주차 필수, 길찾기 요령 등) — 자유 텍스트라 입력
+// 칸을 따로 두는 대신 prompt()로 간단히 넣고 고치게 함
+function editPresetParkingNote(clientId, presetId){
+  const c = clients.find(x=>x.id===clientId);
+  const p = c && c.presets.find(x=>x.id===presetId);
+  if(!p) return;
+  const note = prompt('이 도착지 전용 안내 (예: 후면주차 필수, 키는 차 안에 등)\n비워두면 안내 없음', p.parkingNote || '');
+  if(note===null) return; // 취소
+  p.parkingNote = note.trim();
+  saveClients(); renderClientPanel();
 }
 function deletePreset(clientId, presetId){
   const c = clients.find(x=>x.id===clientId);
@@ -1412,6 +1438,11 @@ function generateAll(){
       ? step('도착지 연락없이 도착지 번호로 주차완료 사진 전송')
       : step('도착 즉시 도착지 고객에게 연락 → 도착지 번호로 주차완료 사진 전송'),
   ];
+  // 이 도착지만의 특수 안내(예: 능허대로312 후면주차 필수) — 주차하는 바로
+  // 그 단계 밑에 눈에 띄게 붙여서 놓치지 않게 함
+  if(matchedPreset && matchedPreset.parkingNote){
+    arrivalSteps.push(`    🅿️ ${matchedPreset.parkingNote}`);
+  }
   if(client && client.feePaidAtArrival){
     arrivalSteps.push(step('탁송료 + 주유비: 전부 도착지에서 직접 결제받기'));
   }
@@ -1611,6 +1642,7 @@ safeInit('거래처 카드 이벤트 위임', ()=>{
     else if(action==='delete-client') deleteClient(id);
     else if(action==='delete-preset') deletePreset(id, btn.dataset.presetId);
     else if(action==='toggle-preset-nocall') togglePresetNoCall(id, btn.dataset.presetId);
+    else if(action==='edit-preset-parking') editPresetParkingNote(id, btn.dataset.presetId);
     else if(action==='add-preset') addPreset(id);
   });
   document.getElementById('clientList').addEventListener('change', e=>{
