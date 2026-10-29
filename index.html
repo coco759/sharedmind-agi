@@ -862,14 +862,23 @@ const GREETING_STOP = ['안녕하세요','감사합니다','네','넵','알겠�
 const NOISE_WORDS = ['월요일','화요일','수요일','목요일','금요일','토요일','일요일',
   '오전','오후','배차','부탁드립니다','부탁드려요','부탁합니다','주유비','주유'];
 
-// label words that precede a value on a templated line (예: "주소 : ...", "차량: ...")
-const LABEL_PREFIX_RE = /^(주소|차량|배차금액|탁송료|연락처|전화|성명|메모|비고)\s*[:：]?\s*/;
+// label words that precede a value on a templated line (예: "주소 : ...", "차량: ...").
+// "차량번호"/"차량명" are listed *before* the shorter "차량" so they match in full —
+// otherwise "차량" alone matches as a bare prefix of "차량번호"/"차량명" (the optional
+// "\s*[:：]?\s*" after it is all zero-width, so nothing stops the match), stripping
+// only "차량" and leaving "번호 :"/"명 :" behind to get swept up as a bogus address
+// later. "(?![가-힣])" guards every other label the same way against unlisted lookalikes.
+const LABEL_PREFIX_RE = /^(차량번호|차량명|주소|차량|배차금액|탁송료|연락처|전화|성명|메모|비고)(?![가-힣])\s*[:：]?\s*/;
 
 // "출발지: 주소" / "도착 - 주소" style inline labels — the "(?![가-힣])" guard stops this
 // from also matching mid-sentence uses like "...출발지와 도착지를 꼭 다시 확인해...", and
-// "[ \t]*" (not "\s*") keeps the match from silently crossing a newline into the next line
-const EXPLICIT_FROM_RE = /(?:출발지|출발)(?![가-힣])[ \t]*[:：\-]?[ \t]*([^\n]+)/;
-const EXPLICIT_TO_RE = /(?:도착지|도착)(?![가-힣])[ \t]*[:：\-]?[ \t]*([^\n]+)/;
+// "[ \t]*" (not "\s*") keeps the match from silently crossing a newline into the next line.
+// "(?:^|\n)[ \t]*" additionally requires the label to be the *first* thing on its own
+// line — without it, a note like "...6시30분도착 예약배차 부탁드립니다" matches "도착"
+// sitting mid-sentence (followed by a space, so the lookahead alone doesn't block it)
+// and hijacks the rest of that line as if it were the real 도착지 value.
+const EXPLICIT_FROM_RE = /(?:^|\n)[ \t]*(?:출발지|출발)(?![가-힣])[ \t]*[:：\-]?[ \t]*([^\n]+)/;
+const EXPLICIT_TO_RE = /(?:^|\n)[ \t]*(?:도착지|도착)(?![가-힣])[ \t]*[:：\-]?[ \t]*([^\n]+)/;
 const LINE_LABEL_STRIP_RE = /^(?:출발지|출발|도착지|도착)(?![가-힣])[ \t]*[:：\-]?[ \t]*/;
 
 // emoji / pictograph bullets commonly used in 배차 안내 템플릿 (🚗 출발, ☎ 010-..., 🚨 필독 등)
