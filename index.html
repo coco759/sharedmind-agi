@@ -335,7 +335,7 @@
     <button class="btn-ghost" id="btnOcrPhoto">📷 사진으로 올리기 (카톡 캡처)</button>
   </div>
   <div style="margin-top:4px;font-size:11.5px;color:var(--sub);">
-    💡 인식이 잘 되려면: 상단 상태바·프로필 사진·이모티콘·시간 빼고 <b>주소/연락처/차종 글자만</b> 나오게 캡처해서 올려주세요
+    💡 평소처럼 캡처해서 올리시면 돼요 — 올린 뒤 화면에서 <b>필요한 부분만 사각형으로 선택</b>할 수 있어요
   </div>
   <input type="file" id="ocrFileInput" accept="image/*" style="display:none;" />
   <div id="ocrStatus" style="display:none;margin-top:6px;font-size:12.5px;color:var(--sub);"></div>
@@ -437,6 +437,28 @@
 
 <div id="toast" class="toast"></div>
 <footer>탁송 오더 매니저 · 이 브라우저에만 저장됩니다</footer>
+
+<!-- 전체화면 캡처를 올려도, 상태바·프로필사진·이모티콘 등은 빼고 필요한
+     부분만 화면에서 직접 선택할 수 있게 해주는 크롭 오버레이. 미리 잘라서
+     올릴 필요 없이 그냥 평소처럼 캡처한 사진을 올리면 됨. -->
+<div id="cropOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:14px;">
+  <div style="color:#fff;font-size:13px;margin-bottom:10px;text-align:center;line-height:1.5;">
+    📷 주소·연락처·차종이 있는 부분만 사각형으로 맞춰주세요<br/>(모서리를 끌어서 크기 조절, 가운데를 끌어서 이동)
+  </div>
+  <div id="cropStage" style="position:relative;max-width:100%;max-height:68vh;line-height:0;touch-action:none;">
+    <img id="cropImg" style="display:block;max-width:100%;max-height:68vh;user-select:none;-webkit-user-drag:none;" />
+    <div id="cropBox" style="position:absolute;left:0;top:0;width:0;height:0;border:2px solid #ff7a1a;background:rgba(255,122,26,.15);touch-action:none;box-sizing:border-box;">
+      <div class="crop-handle" data-corner="nw" style="position:absolute;left:-11px;top:-11px;width:22px;height:22px;background:#ff7a1a;border-radius:50%;border:2px solid #fff;"></div>
+      <div class="crop-handle" data-corner="ne" style="position:absolute;right:-11px;top:-11px;width:22px;height:22px;background:#ff7a1a;border-radius:50%;border:2px solid #fff;"></div>
+      <div class="crop-handle" data-corner="sw" style="position:absolute;left:-11px;bottom:-11px;width:22px;height:22px;background:#ff7a1a;border-radius:50%;border:2px solid #fff;"></div>
+      <div class="crop-handle" data-corner="se" style="position:absolute;right:-11px;bottom:-11px;width:22px;height:22px;background:#ff7a1a;border-radius:50%;border:2px solid #fff;"></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:16px;width:100%;max-width:360px;">
+    <button class="btn" id="btnCropCancel" style="background:#333;color:#fff;border-color:#555;">취소</button>
+    <button class="btn-primary" id="btnCropConfirm" style="margin-top:0;">이 부분만 쓰기</button>
+  </div>
+</div>
 
 <!-- 카톡 캡처 사진에서 글자를 뽑아내는 OCR — 브라우저 안에서만 동작, 서버/API키 불필요 -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -1607,6 +1629,98 @@ function esc(s){
    바로 "생성"에 쓰지 않고 오더 붙여넣기 칸에 채워서 기존 흐름(자동 추출
    → 검수 → 생성) 그대로 한 번 더 확인하게 함. */
 
+// 전체화면 캡처를 올려도 상태바/프로필사진/이모티콘까지 OCR이 전부 읽어
+//버려서 결과가 엉망이 됨 — 미리 잘라서 올려달라고 하는 대신, 올린 사진을
+// 화면에 띄워놓고 필요한 부분만 사각형으로 직접 선택하게 해줌(드래그로
+// 이동/크기조절). 선택 영역만 잘라서 OCR로 넘김.
+let cropBoxMode = null; // 'move' | 'nw' | 'ne' | 'sw' | 'se'
+let cropBoxStart = null; // {x, y, left, top, width, height}
+function initCropBox(){
+  const stage = document.getElementById('cropStage');
+  const box = document.getElementById('cropBox');
+  if(!stage || !box) return;
+
+  function rectOf(el){ return { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight }; }
+  function apply(r){
+    box.style.left = r.left+'px'; box.style.top = r.top+'px';
+    box.style.width = r.width+'px'; box.style.height = r.height+'px';
+  }
+  function clamp(r){
+    const stageW = stage.clientWidth, stageH = stage.clientHeight, min = 24;
+    let {left, top, width, height} = r;
+    if(width < min) width = min;
+    if(height < min) height = min;
+    if(width > stageW) width = stageW;
+    if(height > stageH) height = stageH;
+    if(left < 0) left = 0;
+    if(top < 0) top = 0;
+    if(left + width > stageW) left = stageW - width;
+    if(top + height > stageH) top = stageH - height;
+    return {left, top, width, height};
+  }
+
+  box.addEventListener('pointerdown', e=>{
+    const handle = e.target.closest('.crop-handle');
+    cropBoxMode = handle ? handle.dataset.corner : 'move';
+    cropBoxStart = Object.assign({x:e.clientX, y:e.clientY}, rectOf(box));
+    box.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  box.addEventListener('pointermove', e=>{
+    if(!cropBoxMode) return;
+    const dx = e.clientX - cropBoxStart.x, dy = e.clientY - cropBoxStart.y;
+    let r = {left:cropBoxStart.left, top:cropBoxStart.top, width:cropBoxStart.width, height:cropBoxStart.height};
+    if(cropBoxMode==='move'){
+      r.left = cropBoxStart.left + dx; r.top = cropBoxStart.top + dy;
+    } else {
+      if(cropBoxMode.includes('w')){ r.left = cropBoxStart.left + dx; r.width = cropBoxStart.width - dx; }
+      if(cropBoxMode.includes('e')){ r.width = cropBoxStart.width + dx; }
+      if(cropBoxMode.includes('n')){ r.top = cropBoxStart.top + dy; r.height = cropBoxStart.height - dy; }
+      if(cropBoxMode.includes('s')){ r.height = cropBoxStart.height + dy; }
+    }
+    apply(clamp(r));
+  });
+  ['pointerup','pointercancel'].forEach(ev=> box.addEventListener(ev, ()=>{ cropBoxMode = null; }));
+}
+
+function openCropOverlay(file){
+  const overlay = document.getElementById('cropOverlay');
+  const imgEl = document.getElementById('cropImg');
+  const box = document.getElementById('cropBox');
+  const url = URL.createObjectURL(file);
+  imgEl.onload = ()=>{
+    box.style.left = '0px'; box.style.top = '0px';
+    box.style.width = imgEl.clientWidth + 'px';
+    box.style.height = imgEl.clientHeight + 'px';
+  };
+  imgEl.src = url;
+  overlay.dataset.objectUrl = url;
+  overlay.style.display = 'flex';
+}
+function closeCropOverlay(){
+  const overlay = document.getElementById('cropOverlay');
+  const imgEl = document.getElementById('cropImg');
+  if(overlay.dataset.objectUrl){ URL.revokeObjectURL(overlay.dataset.objectUrl); delete overlay.dataset.objectUrl; }
+  overlay.style.display = 'none';
+  imgEl.src = '';
+}
+async function confirmCrop(){
+  const imgEl = document.getElementById('cropImg');
+  const box = document.getElementById('cropBox');
+  if(!imgEl.naturalWidth){ closeCropOverlay(); return; }
+  const scaleX = imgEl.naturalWidth / imgEl.clientWidth;
+  const scaleY = imgEl.naturalHeight / imgEl.clientHeight;
+  const sx = box.offsetLeft * scaleX, sy = box.offsetTop * scaleY;
+  const sw = box.offsetWidth * scaleX, sh = box.offsetHeight * scaleY;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(sw));
+  canvas.height = Math.max(1, Math.round(sh));
+  canvas.getContext('2d').drawImage(imgEl, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  closeCropOverlay();
+  if(blob) handleOcrFile(blob);
+}
+
 // OCR 정확도를 높이기 위한 전처리: 흑백 변환 + 대비 강화 + (작은 사진이면)
 // 확대. 캡처에 색깔 있는 말풍선 배경이 섞여 있으면 Tesseract가 글자를
 // 잘 못 읽는 경우가 많아서, 색을 날리고 글자-배경 대비를 키워주는 것만으로도
@@ -1739,9 +1853,14 @@ safeInit('카톡 캡처 사진 OCR 업로드', ()=>{
   document.getElementById('btnOcrPhoto').addEventListener('click', ()=> fileInput.click());
   fileInput.addEventListener('change', (e)=>{
     const file = e.target.files && e.target.files[0];
-    handleOcrFile(file);
+    if(file) openCropOverlay(file);
     fileInput.value = ''; // 같은 사진 다시 선택해도 change가 또 발생하게
   });
+});
+safeInit('사진 크롭 오버레이', ()=>{
+  initCropBox();
+  document.getElementById('btnCropCancel').addEventListener('click', closeCropOverlay);
+  document.getElementById('btnCropConfirm').addEventListener('click', confirmCrop);
 });
 
 // 3) event delegation for the dynamically-rendered client cards (⚙️ 패널)
