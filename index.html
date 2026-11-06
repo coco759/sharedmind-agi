@@ -334,6 +334,9 @@
   <div class="row-buttons" style="margin-top:8px;">
     <button class="btn-ghost" id="btnOcrPhoto">📷 사진으로 올리기 (카톡 캡처)</button>
   </div>
+  <div style="margin-top:4px;font-size:11.5px;color:var(--sub);">
+    💡 인식이 잘 되려면: 상단 상태바·프로필 사진·이모티콘·시간 빼고 <b>주소/연락처/차종 글자만</b> 나오게 캡처해서 올려주세요
+  </div>
   <input type="file" id="ocrFileInput" accept="image/*" style="display:none;" />
   <div id="ocrStatus" style="display:none;margin-top:6px;font-size:12.5px;color:var(--sub);"></div>
 
@@ -1603,25 +1606,74 @@ function esc(s){
    다만 OCR이 전화번호 숫자 같은 걸 완벽하게 읽어내진 못하므로, 결과를
    바로 "생성"에 쓰지 않고 오더 붙여넣기 칸에 채워서 기존 흐름(자동 추출
    → 검수 → 생성) 그대로 한 번 더 확인하게 함. */
+
+// OCR 정확도를 높이기 위한 전처리: 흑백 변환 + 대비 강화 + (작은 사진이면)
+// 확대. 캡처에 색깔 있는 말풍선 배경이 섞여 있으면 Tesseract가 글자를
+// 잘 못 읽는 경우가 많아서, 색을 날리고 글자-배경 대비를 키워주는 것만으로도
+// 인식률이 꽤 좋아짐. 실패해도(구형 브라우저 등) 원본 그대로 진행.
+async function preprocessImageForOcr(file){
+  try{
+    const bitmap = await createImageBitmap(file);
+    const scaleUp = bitmap.width < 900 ? 2 : 1;
+    const w = Math.round(bitmap.width * scaleUp);
+    const h = Math.round(bitmap.height * scaleUp);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    const contrast = 1.35;
+    const intercept = 128 * (1 - contrast);
+    for(let i=0; i<d.length; i+=4){
+      const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      let v = gray*contrast + intercept;
+      v = v < 0 ? 0 : (v > 255 ? 255 : v);
+      d[i] = d[i+1] = d[i+2] = v;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return await new Promise(resolve => canvas.toBlob(b => resolve(b || file), 'image/png'));
+  }catch(e){
+    console.error('[탁송 오더 매니저] 이미지 전처리 실패, 원본으로 진행:', e);
+    return file;
+  }
+}
+
 async function handleOcrFile(file){
   if(!file) return;
   const statusEl = document.getElementById('ocrStatus');
   statusEl.style.display = 'block';
-  statusEl.textContent = '📷 사진에서 글자를 읽는 중... (몇 초 걸려요)';
+  statusEl.textContent = '📷 사진 전처리 중...';
   try{
     if(typeof Tesseract === 'undefined'){
       throw new Error('Tesseract 라이브러리 로드 실패');
     }
-    const result = await Tesseract.recognize(file, 'kor+eng', {
-      logger: m=>{
-        if(m.status==='recognizing text' && typeof m.progress==='number'){
-          statusEl.textContent = `📷 사진에서 글자를 읽는 중... ${Math.round(m.progress*100)}%`;
-        }
+    const processed = await preprocessImageForOcr(file);
+    statusEl.textContent = '📷 사진에서 글자를 읽는 중... (몇 초 걸려요)';
+    const onProgress = m=>{
+      if(m.status==='recognizing text' && typeof m.progress==='number'){
+        statusEl.textContent = `📷 사진에서 글자를 읽는 중... ${Math.round(m.progress*100)}%`;
       }
-    });
-    const text = ((result && result.data && result.data.text) || '').trim();
+    };
+
+    let text = '';
+    // 채팅 캡처는 글자가 말풍선마다 띄엄띄엄 흩어져 있어서, 일반 문서용
+    // 자동 레이아웃 분석(기본값)보다 "흩어진 텍스트" 모드(PSM 11)가 인식이
+    // 잘 되는 편 — 혹시 이 세부 설정이 안 먹는 버전이면 기본 모드로 재시도
+    try{
+      const worker = await Tesseract.createWorker('kor+eng', 1, { logger: onProgress });
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      const { data } = await worker.recognize(processed);
+      text = ((data && data.text) || '').trim();
+      await worker.terminate();
+    }catch(innerErr){
+      console.error('[탁송 오더 매니저] 세부 OCR 설정 실패, 기본 모드로 재시도:', innerErr);
+      const result = await Tesseract.recognize(processed, 'kor+eng', { logger: onProgress });
+      text = ((result && result.data && result.data.text) || '').trim();
+    }
+
     if(!text){
-      statusEl.textContent = '⚠️ 사진에서 글자를 찾지 못했어요. 더 밝고 선명한 사진으로 다시 시도해주세요.';
+      statusEl.textContent = '⚠️ 사진에서 글자를 찾지 못했어요. 주소/연락처 부분만 크게 캡처해서 다시 시도해주세요.';
       return;
     }
     const ta = document.getElementById('rawOrder');
