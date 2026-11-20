@@ -1317,43 +1317,16 @@ function regionOf(address){
   return splitRegion(address).region;
 }
 
-// simplifies a full address down to "지역 + 랜드마크/도로명" for display in the
-// 출발지/도착지 필드 and the 거래처 확인 문자 — the full address stays intact in
-// the hidden *Full field for 기사문자, which needs the precise address to navigate by
-const LANDMARK_SUFFIXES = ['아파트','빌라','오피스텔','타워','캐슬','빌딩','프라자','상가',
-  '센터','단지','마을','하이츠','팰리스','파크','더샵','스카이','밸리','시티','오토모티브','모터스'];
-const ADDR_DETAIL_STRIP_RE = /\s*(지하\s?\d*층?|지상\s?\d*층?|\d+층|주차장|앞|뒤|정문|후문|단지\s?내|엘리베이터|입구).*$/;
+// simplifies a full address down to just the 행정구역명(시/구/군/읍/면 등)
+// for display in the 출발지/도착지 필드 and the 거래처 확인 문자 — the full
+// address always stays intact in the hidden *Full field for 기사문자, which
+// needs the precise address to navigate by (and is also shown as "상세:" right
+// under the shortened field, so nothing is actually lost, just tucked away).
+// (예전엔 "부천 현대아파트"처럼 랜드마크/도로명까지 붙였는데, 그럴수록 오히려
+// "충청북 1단지"처럼 엉뚱한 단어가 붙을 여지가 생겨서 — 행정구역명 하나로 통일)
 function placeNameOf(address){
   if(!address) return '';
-  const {region, rest} = splitRegion(address);
-  const tokens = rest.split(/\s+/).filter(Boolean);
-
-  let landmark = tokens.find(t=>LANDMARK_SUFFIXES.some(suf=>t.endsWith(suf)));
-  if(landmark){
-    // "1단지"/"2차"처럼 숫자+접미사뿐인 토큰은 그 자체로는 어느 단지인지 알
-    // 수 없음 ("시티프라디움 1단지"처럼 진짜 이름은 보통 바로 앞 토큰에 있음) —
-    // 그 경우 앞 토큰이 있으면 그걸 대신 씀
-    if(/^\d+(단지|차)$/.test(landmark)){
-      const prev = tokens[tokens.indexOf(landmark)-1];
-      if(prev && prev.length>=2 && !/^\d/.test(prev)) landmark = prev;
-    }
-    return [region, landmark.replace(/[.,]+$/,'')].filter(Boolean).join(' ').trim();
-  }
-
-  // 중고차 매매상사/카센터/정비소 같은 상호명은 보통 여러 단어라 한 단어만 남기면
-  // 어느 업체인지 알아볼 수가 없다 — 지명 축약 없이 상호명 전체를 그대로 유지
-  if(PLACE_SUFFIX_HINTS.some(suf=>rest.endsWith(suf))){
-    return [region, rest].filter(Boolean).join(' ').trim();
-  }
-
-  let trimmed = rest.replace(ADDR_DETAIL_STRIP_RE,'').trim().replace(/^\d+[-\d]*\s*/,'').trim();
-  const dongMatch = trimmed.match(/^(.*?[가-힣])\s*\d+동/);
-  if(dongMatch) return [region, dongMatch[1]].filter(Boolean).join(' ').trim();
-
-  const roadToken = tokens.find(t=>/[가-힣]+(로|길)\d*/.test(t));
-  if(roadToken) return [region, roadToken.replace(/[.,]+$/,'')].filter(Boolean).join(' ').trim();
-
-  return region || address;
+  return regionOf(address) || address;
 }
 
 // sets both the visible (지명 축약) and hidden (전체주소, 기사문자용) address fields
