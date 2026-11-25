@@ -867,6 +867,7 @@ const VEHICLE_KEYWORDS = ['소나타','아반떼','그랜저','싼타페','투�
   'K3','K5','K7','K8','K9','스포티지','쏘렌토','셀토스','카니발','모하비','스타렉스','포터','봉고',
   '레이','모닝','캐스퍼','티볼리','코란도','렉스턴','QM6','QM3','SM6','SM5','말리부','트랙스',
   '트레일블레이저','이쿼녹스','로체','제네시스','G70','G80','G90','GV70','GV80','아이오닉','EV6',
+  'XM3','SM3',
   '니로','벤츠','BMW','아우디','폭스바겐','볼보','렉서스','도요타','캠리','혼다','닛산','아반떼hd',
   '아반떼HD','스타리아','올란도','다마스','라보',
   '크루즈','스파크','아베오','트래버스','콜로라도','임팔라','더뉴','올뉴','티코','프라이드','엑센트','베르나',
@@ -1066,8 +1067,12 @@ function autoExtract(){
       // a registered keyword that happens to be a *suffix* of some other model
       // name (e.g. "크루즈" 안에 숨어있는 "베라크루즈") gets falsely matched,
       // splitting the real model name into a stray prefix + the wrong car.
+      // test against `working` (VIN/phone/plate already stripped off it above),
+      // not the raw `line` — otherwise a keyword like "K5"/"G80" that happens to
+      // appear as a substring inside a 17자리 VIN (e.g. "KNMK5B2RMMP027735"
+      // contains "K5") gets falsely picked as the vehicle instead of the real one
       const foundKw = VEHICLE_KEYWORDS
-        .filter(k=> new RegExp('(?<![가-힣])'+esc0(k), 'i').test(line))
+        .filter(k=> new RegExp('(?<![가-힣])'+esc0(k), 'i').test(working))
         .sort((a,b)=>b.length-a.length)[0];
       if(foundKw){
         const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
