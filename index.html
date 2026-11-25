@@ -472,7 +472,7 @@ const SETTINGS_KEY = 'tacsong_settings_v1';
 // these settings (bizNumber / defaultArrival / defaultArrivalPhone / useMapInstead / mapNote)
 const KNOWN_DEFAULTS = {
   '제이에스무역': { bizNumber: '321-44-01287', coversFuelAndParking: true }, // 도착지는 매번 달라짐 → 고정값 없음
-  '달렉스무역':   { defaultArrival: '송도 과학로 80 101동 지하 2층', defaultArrivalPhone: '010-6231-4179', bizNumber: '6118603456' },
+  '달렉스무역':   { defaultArrival: '송도 AIT 오피스텔 101동 지하 2층', defaultArrivalPhone: '010-6231-4179', bizNumber: '6118603456' },
   '두리무역':     { defaultArrival: '능허대로50' },
   '이글무역':     { useMapInstead: true, mapNote: '송도유원지' },
   'Ssen 무역':    { defaultArrival: '송도유원지', fuelCallDestination: true },
@@ -535,6 +535,9 @@ function loadClients(){
     // 이미 저장해둔 기기가 있을 수 있어서, 값이 비어있지 않아도 이 한 번은
     // 강제로 고쳐줌 (그 다음부턴 사용자가 직접 고치면 그대로 유지됨)
     if(c.name==='주주무역' && c.defaultArrival==='능허대로192') c.defaultArrival = '능허대로222';
+    // 달렉스무역 도착지 정정: 건물명이 "과학로 80"이 아니라 "AIT 오피스텔"이라고
+    // 해서 이미 저장해둔 기기가 있을 수 있어 한 번 강제로 고쳐줌
+    if(c.name==='달렉스무역' && c.defaultArrival==='송도 과학로 80 101동 지하 2층') c.defaultArrival = '송도 AIT 오피스텔 101동 지하 2층';
     // 투바무역: 원데이보험 안내 문구는 필요 없다고 해서 뺌 — 등록 직후라
     // 이미 켜진 채로 저장된 기기가 있을 수 있어서 한 번 강제로 꺼줌
     if(c.name==='투바무역' && c.oneDayInsuranceProvided) c.oneDayInsuranceProvided = false;
